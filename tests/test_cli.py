@@ -37,6 +37,21 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.stdout, b"host=[PRIVATE_IP_1] peer=[PRIVATE_IP_1]")
         self.assertEqual(result.stderr, b"")
 
+    def test_password_scan_and_sanitize(self):
+        text = b"password=SyntheticSecret42 pwd=SyntheticSecret42"
+        result = run_cli("scan", text)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        findings = json.loads(result.stdout)
+        self.assertEqual(len(findings), 2)
+        self.assertEqual(findings[0]["rule_id"], "PASSWORD_ASSIGNMENT")
+        self.assertEqual((findings[0]["start"], findings[0]["end"]), (9, 26))
+        self.assertNotIn(b"SyntheticSecret42", result.stdout)
+        result = run_cli("sanitize", text)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        self.assertEqual(result.stdout, b"password=[PASSWORD_1] pwd=[PASSWORD_1]")
+
     def test_input_size_boundary(self):
         exact = run_cli("sanitize", b"a" * (1024 * 1024))
         self.assertEqual(exact.returncode, 0)

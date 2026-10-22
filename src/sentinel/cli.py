@@ -6,7 +6,7 @@ import json
 import sys
 
 from sentinel.core.sanitize import sanitize
-from sentinel.detectors.private_ipv4 import scan
+from sentinel.core.scan import scan
 
 
 MAX_INPUT_BYTES = 1024 * 1024
