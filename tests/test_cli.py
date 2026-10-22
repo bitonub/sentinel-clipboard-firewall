@@ -52,6 +52,21 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.stderr, b"")
         self.assertEqual(result.stdout, b"password=[PASSWORD_1] pwd=[PASSWORD_1]")
 
+    def test_bearer_scan_and_sanitize(self):
+        text = b"Authorization: Bearer SyntheticBearer42\n"
+        result = run_cli("scan", text)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        findings = json.loads(result.stdout)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["rule_id"], "BEARER_TOKEN")
+        self.assertEqual((findings[0]["start"], findings[0]["end"]), (22, 39))
+        self.assertNotIn(b"SyntheticBearer42", result.stdout)
+        result = run_cli("sanitize", text)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        self.assertEqual(result.stdout, b"Authorization: Bearer [BEARER_TOKEN_1]\n")
+
     def test_input_size_boundary(self):
         exact = run_cli("sanitize", b"a" * (1024 * 1024))
         self.assertEqual(exact.returncode, 0)

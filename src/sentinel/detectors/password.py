@@ -18,7 +18,7 @@ _ASSIGNMENTS = re.compile(
 )
 _PLACEHOLDER = re.compile(
     r"(?:\$\{[^{}\s]+\}|\$[A-Za-z_][A-Za-z_0-9]*|"
-    r"\[(?:PASSWORD|PRIVATE_IP)_[0-9]+\])"
+    r"\[(?:PASSWORD|PRIVATE_IP|BEARER_TOKEN)_[0-9]+\])"
 )
 
 

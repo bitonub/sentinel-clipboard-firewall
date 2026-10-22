@@ -1,6 +1,7 @@
 # SENTINEL Clipboard Firewall
 
-Herramienta local para detectar y sanitizar IPv4 privadas y asignaciones de contraseña en texto
+Herramienta local para detectar y sanitizar IPv4 privadas, asignaciones de
+contraseña y tokens Bearer en texto
 proporcionado explícitamente por stdin. Requiere Python 3.11 o superior y usa
 solo la biblioteca estándar durante la ejecución.
 
@@ -17,6 +18,9 @@ printf 'host=10.20.30.40' | sentinel scan
 
 printf 'password=Synthetic42 pwd=Synthetic42' | sentinel sanitize
 # password=[PASSWORD_1] pwd=[PASSWORD_1]
+
+printf 'Authorization: Bearer Synthetic42' | sentinel sanitize
+# Authorization: Bearer [BEARER_TOKEN_1]
 ```
 
 `scan` devuelve una lista JSON de hallazgos con posiciones de caracteres
@@ -39,6 +43,17 @@ generadas se omiten. La numeración es independiente por categoría y operación
 las repeticiones se comparan literalmente, sin interpretar escapes.
 Si una contraseña contiene una IPv4 privada, se informa y sustituye el valor
 completo de la contraseña, evitando intervalos superpuestos.
+
+Se admiten encabezados literales `Authorization: Bearer <token>`, sin distinguir
+mayúsculas, con espacios o tabuladores en una sola línea. El token puede usar
+letras ASCII, dígitos, `-._~+/` y signos `=` al final. No se aceptan prefijos de
+tokens con caracteres fuera de ese conjunto. Solo se sustituye el token por
+`[BEARER_TOKEN_n]`, conservando encabezado, esquema y espacios. Los tokens
+vacíos y las etiquetas existentes se omiten; las etiquetas Bearer y de
+contraseña presentes en el texto se reservan antes de numerar valores nuevos.
+Un token que también sea una IPv4 se sustituye como Bearer; un encabezado
+dentro del valor de una contraseña se sustituye como parte de esa contraseña.
+No se interpretan representaciones JSON de encabezados ni encabezados plegados.
 
 La detección es textual: no interpreta lenguajes de configuración, comentarios
 ni valores multilínea, y solo cubre las claves y formas descritas.
