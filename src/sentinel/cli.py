@@ -54,5 +54,6 @@ def main() -> int:
     elif args.command == "scan":
         print(json.dumps([asdict(finding) for finding in scan(content)], ensure_ascii=False))
     else:
-        sys.stdout.write(sanitize(content))
+        # Preserve UTF-8 and line endings, including on Windows text streams.
+        sys.stdout.buffer.write(sanitize(content).encode("utf-8"))
     return 0

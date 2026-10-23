@@ -1,9 +1,13 @@
+import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
+
+from sentinel.cli import main
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +40,21 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b"host=[PRIVATE_IP_1] peer=[PRIVATE_IP_1]")
         self.assertEqual(result.stderr, b"")
+
+    def test_sanitize_preserves_utf8_bytes_with_windows_text_stdout(self):
+        for ending in ("\n", "\r\n", "\r", "\n\r\n"):
+            with self.subTest(ending=repr(ending)):
+                source = f"é{ending}Authorization: Bearer SyntheticBearer42{ending}tail".encode("utf-8")
+                expected = f"é{ending}Authorization: Bearer [BEARER_TOKEN_1]{ending}tail".encode("utf-8")
+                sink = io.BytesIO()
+                with (io.TextIOWrapper(io.BytesIO(source), encoding="utf-8") as stdin,
+                      io.TextIOWrapper(sink, encoding="cp1252", newline="\r\n",
+                                       write_through=True) as stdout):
+                    with (patch.object(sys, "stdin", stdin), patch.object(sys, "stdout", stdout),
+                          patch.object(sys, "argv", ["sentinel", "sanitize"])):
+                        self.assertEqual(main(), 0)
+                    output = sink.getvalue()
+                self.assertEqual(output, expected)
 
     def test_password_scan_and_sanitize(self):
         text = b"password=SyntheticSecret42 pwd=SyntheticSecret42"

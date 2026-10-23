@@ -48,7 +48,9 @@ van a stderr sin reproducir la entrada.
 En un entorno virtual, instala `pip install '.[gui]'` y ejecuta `sentinel-gui`.
 `pip install .` conserva la CLI sin instalar Qt. El lanzador importa Qt solo
 cuando se invoca la GUI y comunica de forma segura si falta el extra.
-La versión mínima de PySide6 es 6.12.0, comprobada con Python 3.14.7.
+La GUI usa PySide6 `>=6.11.2,<6.12`, compatible con Python 3.11 y 3.14.
+Se excluye temporalmente la serie 6.12 por un aborto reproducible de
+`Signal.emit()` con PySide6 6.12.0 y Python 3.11; véase [el diagnóstico de CI](docs/ci.md).
 
 La ventana tiene entrada de texto plano y salida de solo lectura. **Inspeccionar**
 muestra metadatos de los hallazgos; **Sanitizar** muestra el texto completo

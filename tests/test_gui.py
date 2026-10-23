@@ -217,6 +217,28 @@ raise SystemExit(main())
         self.assertNotIn(b"Traceback", result.stderr)
         self.assertNotIn(b"shared QObject", result.stderr)
 
+    def test_signal_emission_does_not_corrupt_boolean_references(self):
+        code = """
+import sys
+from PySide6.QtCore import QObject, Signal
+
+class Sender(QObject):
+    changed = Signal()
+
+sender = Sender()
+sender.changed.emit()  # Initialize any lazy binding state before measuring.
+before = sys.getrefcount(True)
+for _ in range(2000):
+    sender.changed.emit()
+# True is immortal from CPython 3.12; its count is not a lifetime invariant.
+if sys.version_info < (3, 12):
+    assert sys.getrefcount(True) == before, "Signal emission changed True references"
+"""
+        result = subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", code],
+                                capture_output=True, timeout=10, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
+        self.assertEqual(result.stdout, b"")
+
     def test_scan_metadata_privacy_and_unicode_positions(self):
         self.window.input.setPlainText("é😀 password=SyntheticSecret host=10.0.0.1")
         output = self.run_action(self.window.inspect_button)

@@ -142,7 +142,68 @@ En Fedora 44, CPython 3.14.7, el 22 de octubre de 2026:
   6.12.0.140. Esto no certifica la ausencia de vulnerabilidades en Qt nativo.
 - pip check en entornos de desarrollo y CLI, compileall y diff --check correctos.
 
-No se ejecutó localmente Python 3.11, Windows ni un workflow en GitHub.
+Estas comprobaciones iniciales no incluyeron Python 3.11 ni Windows.
+
+### Diagnóstico de la ejecución 39898145390
+
+Se revisaron `gh run view 39898145390 --log-failed`, el listado de trabajos
+y los registros completos de los tres trabajos GUI fallidos. GUI Ubuntu/Python
+3.14 pasó; los fallos se agrupan en dos causas:
+
+- Producto, salida CLI en Windows: `test_bearer_scan_and_sanitize` falla en
+  la comparación de bytes en los cuatro trabajos Windows, CLI y GUI con ambos
+  Python. GitHub enmascara los operandos como `Authorization: ***`. La reproducción
+  local con un TextIOWrapper configurado como Windows confirma la conversión
+  LF a CRLF (y CRLF a CRCRLF). `sanitize` ahora escribe bytes UTF-8 por stdout,
+  conservando acentos y los finales de línea originales. No se relaja la prueba.
+- Dependencia GUI/Python 3.11 en Linux: tras `Ran 125 tests ... OK`, el proceso
+  aborta con `Fatal Python error: bool_dealloc: deallocating True or False: bug
+  likely caused by a refcount error in a C extension`, estado `finalizing` y
+  código 134. Se reprodujo localmente con CPython 3.11.17 y PySide6 6.12.0,
+  primero con el gate GUI y después solo con `tests.test_gui`.
+
+La reproducción mínima del segundo fallo no importa SENTINEL ni crea widgets:
+
+```python
+from PySide6.QtCore import QObject, Signal
+
+class Sender(QObject):
+    changed = Signal()
+
+sender = Sender()
+for _ in range(1000):
+    sender.changed.emit()
+```
+
+Con Python 3.11/PySide6 6.12.0 cada emisión pierde una referencia a `True`;
+la repetición causa SIGABRT, el mismo diagnóstico `bool_dealloc` y código 134
+en shell (-6 al observarlo mediante subprocess). Con Qt/Shiboken 6.11.2 la
+reproducción termina con código 0 y sin cambio en el contador de referencias.
+Esto identifica una incompatibilidad de la dependencia; no un error de las
+aserciones ni ausencia de bibliotecas del runner. Qt se importó e inicializó
+y las 32 pruebas GUI originales se ejecutaron sin omisiones.
+
+El extra GUI se acota temporalmente a `PySide6>=6.11.2,<6.12`. La regresión
+ejecuta las emisiones en otro proceso y exige código 0, incluida la finalización
+del intérprete. En Python 3.11 exige además referencias estables; desde Python
+3.12 `True` es inmortal y su contador no representa su ciclo de vida.
+No se usan os._exit ni omisiones para
+evitar el aborto. Antes de ampliar el rango de Qt hay que repetir esta prueba
+y la matriz completa. Se mantienen Python 3.11/3.14, Linux/Windows y todos
+los gates. Una nueva ejecución de los cambios en GitHub y Windows sigue pendiente.
+
+Después de aislar el fallo y corregir el rango, los gates GUI locales finalizaron
+con código 0 en Fedora con CPython 3.11.17 y 3.14.7: 127 pruebas, incluidas
+33 GUI, sin fallos ni omisiones en cada ejecución. La regresión de finales de
+línea usa una salida de texto configurada como Windows; no sustituye una
+ejecución nativa de Windows. Para migrar desde Qt 6.12 se recomienda un entorno
+virtual nuevo, evitando componentes Pdf/WebEngine antiguos que pip puede retener.
+Los gates CLI sin Qt también terminaron con código 0 en ambos Python: 127
+descubiertas, 94 ejecutadas efectivamente y 33 omisiones GUI esperadas. Pasaron
+la construcción e instalación externa de paquetes, reconstrucción desde sdist,
+pip check, compileall, actionlint y git diff --check. La auditoría del nuevo
+grafo GUI (cuatro dependencias externas, todas 6.11.2) no reportó avisos conocidos
+en la consulta PyPI; mantiene las limitaciones de auditoría descritas arriba.
 
 ### Pendiente en GitHub y en escritorios nativos
 
