@@ -19,5 +19,10 @@ sentinel = "sentinel.cli:main"
 [project.gui-scripts]
 sentinel-gui = "sentinel.gui.app:main"
 
+[tool.setuptools]
+include-package-data = false
+
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["sentinel", "sentinel.*"]
+namespaces = false

@@ -10,6 +10,9 @@ estándar durante la ejecución; la GUI tiene una dependencia opcional de Qt.
 
 ## Uso
 
+Para generar e instalar wheel y sdist, ver
+[construcción y comprobación de paquetes](docs/packaging.md).
+
 Instala el proyecto con `pip install .` y ejecuta:
 
 ```sh
