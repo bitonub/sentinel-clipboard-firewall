@@ -26,6 +26,8 @@ de SENTINEL. Se supone que el equipo no está comprometido.
 | Agotar memoria con entradas grandes | Lectura acotada a 1 MiB más un byte para detectar exceso | El límite no sustituye pruebas de rendimiento |
 | Alterar texto ajeno al hallazgo | Sustituir únicamente intervalos validados | Los detectores pueden cometer errores |
 | Generar falsa confianza | Documentar alcance y limitaciones | Ausencia de hallazgos no significa seguridad |
+| Capturar sin límite la salida de wl-paste | Lectura máxima de 1 MiB más un byte, plazo y limpieza acotada | La compatibilidad depende del compositor Wayland |
+| Filtrar texto mediante procesos del portapapeles | Argumentos fijos, shell=False, stdin para wl-copy y diagnósticos descartados | wl-copy y el compositor mantienen la selección para servirla |
 
 ## Primer incremento: IPv4 privadas
 
@@ -44,6 +46,16 @@ como privadas.
 - Garantizar que un comando es seguro.
 - Eliminar datos del historial del shell o del portapapeles.
 - Borrar de forma garantizada valores sensibles de la RAM.
+
+La orden clipboard sanitize no elimina el historial que Klipper u otros
+gestores hayan conservado. El indicador sensible de wl-copy es una sugerencia,
+no una garantía de eliminación. Lectura y escritura no son atómicas frente a
+cambios concurrentes; tras un fallo de escritura no se garantiza restauración.
+Los procesos externos tienen plazos de lectura/comunicación y una espera
+adicional acotada durante la limpieza. No se garantiza que terminen tras kill:
+si no se confirma su terminación se deja de esperar y se devuelve un error
+sin detalles sensibles. Los errores de cierre se contienen y no ocultan el
+error principal de la operación.
 
 ## Datos de desarrollo
 

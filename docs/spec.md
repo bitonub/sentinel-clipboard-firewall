@@ -13,8 +13,8 @@ Interfaz de terminal con tres operaciones:
 - sanitize: sustituir los valores detectados por placeholders.
 - check-command: explicar patrones de riesgo sin ejecutar la entrada.
 
-Inicialmente, el texto se recibirá mediante stdin.
-La integración directa con el portapapeles llegará después.
+Las tres operaciones reciben texto mediante stdin. La orden explícita
+`clipboard sanitize` lee y sanitiza texto del portapapeles Wayland.
 
 ## Primer incremento funcional
 
@@ -75,6 +75,20 @@ el mismo formato de metadatos y política de privacidad que la regla Bash.
 Son heurísticas iniciales, no parsers completos. Sus formas admitidas
 y limitaciones se describen en README.md; no garantiza seguridad ante un
 resultado vacío.
+
+## Sanitización explícita del portapapeles
+
+`sentinel clipboard sanitize` utiliza el motor existente y escribe solo si el
+texto cambia. La terminal muestra únicamente estado y número de hallazgos.
+Lee como máximo 1 MiB más un byte, valida UTF-8 y no inicia la escritura ante
+errores de lectura, tamaño, codificación o sanitización. El adaptador invoca
+solo wl-paste y wl-copy con argumentos fijos, shell=False y tiempos límite,
+sin enviar datos en argumentos ni reproducir sus diagnósticos. El núcleo
+permanece independiente de subprocess y del portapapeles.
+La lectura/comunicación tiene un plazo de 5 segundos, con hasta 2 segundos
+adicionales de espera de terminación durante la limpieza. Si no se confirma
+la terminación se comunica un error seguro sin esperar indefinidamente;
+un fallo de limpieza no sustituye un error principal ya controlado.
 
 ## Limitaciones
 

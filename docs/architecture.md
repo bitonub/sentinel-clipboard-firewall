@@ -4,6 +4,8 @@
 
 stdin → CLI → motor → resultado
 
+clipboard sanitize → adaptador Wayland → motor → adaptador Wayland → estado
+
 La CLI recibe texto UTF-8 y limita la entrada a 1 MiB.
 El núcleo recibe texto y devuelve resultados sin acceder
 a la terminal, al portapapeles, al disco ni a la red.
@@ -11,6 +13,16 @@ a la terminal, al portapapeles, al disco ni a la red.
 ## Componentes
 
 - CLI: interpreta opciones, valida la entrada y presenta resultados.
+- Adaptador Wayland: solo ante clipboard sanitize, lee una selección textual
+  mediante wl-paste con lectura acotada y plazo total, valida UTF-8 y transmite
+  el resultado a wl-copy por stdin si hay cambios. Los procesos usan argumentos
+  fijos, shell=False, 5 segundos de lectura/comunicación y hasta 2 segundos
+  adicionales de espera de limpieza. Usa Popen sin gestores de contexto que
+  introduzcan esperas implícitas; todas las esperas de terminación tienen plazo.
+  Pipes sin búfer y selectores se cierran con errores protegidos. La limpieza
+  no oculta errores principales ni garantiza que todo proceso pueda terminar.
+  stdout/stderr externos no se muestran.
+  No guarda contenido en archivos. La CLI solo muestra estado y recuento.
 - Detector: identifica valores y sus posiciones en el texto.
 - Sanitizador: sustituye los intervalos detectados.
 - Command Guard: tokeniza comandos como datos y devuelve metadatos de riesgo
@@ -56,7 +68,7 @@ No se devolverá ni guardará en archivos.
 stdout contendrá el resultado solicitado.
 stderr contendrá diagnósticos y errores sin reproducir la entrada.
 
-## Interfaces posteriores
+## Interfaces
 
-El portapapeles y la GUI utilizarán el mismo núcleo.
-El núcleo no dependerá de esas interfaces.
+El adaptador Wayland reutiliza el núcleo sin introducir subprocess en él.
+La GUI futura utilizará el mismo núcleo independiente de las interfaces.

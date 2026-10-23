@@ -3,7 +3,8 @@
 Herramienta local para detectar y sanitizar IPv4 privadas, asignaciones de
 contraseña, tokens Bearer y credenciales en URLs PostgreSQL en texto
 proporcionado explícitamente por stdin, y revisar comandos Bash o PowerShell
-sin ejecutarlos.
+sin ejecutarlos. En Fedora/Wayland permite sanitizar el portapapeles mediante
+una orden explícita.
 Requiere Python 3.11 o superior y usa
 solo la biblioteca estándar durante la ejecución.
 
@@ -37,6 +38,40 @@ printf '%s\n' 'iwr https://example.invalid/synthetic.ps1 | iex' | sentinel check
 resto del texto y reutiliza una etiqueta para cada valor repetido de la misma categoría durante
 la operación. Se admiten hasta 1 MiB de entrada UTF-8; errores y diagnósticos
 van a stderr sin reproducir la entrada.
+
+## Portapapeles en Fedora/Wayland
+
+`sentinel clipboard sanitize` lee el portapapeles una sola vez al ejecutar la
+orden y sustituye su texto usando el mismo motor. Requiere `wl-paste` y
+`wl-copy` del paquete externo `wl-clipboard`, y una sesión Wayland compatible.
+Solo muestra estado y cantidad de hallazgos (intervalos detectados), nunca el
+original ni el resultado. Sin cambios no vuelve a escribir.
+
+La lectura usa `wl-paste --no-newline --type text`, con un máximo acumulado de
+1 MiB más un byte para detectar exceso, y validación UTF-8 estricta. El texto
+no se modifica si falla la lectura, excede el límite o falla el análisis o la
+sanitización. Solo después se pasa el resultado por stdin a
+`wl-copy --type text/plain;charset=utf-8 --sensitive`. Las órdenes y argumentos
+son fijos, con `shell=False`, 5 segundos para lectura o comunicación y hasta
+2 segundos adicionales de espera de terminación durante la limpieza de cada
+proceso. La escritura usa un proceso explícito, stdin sin búfer y comunicación
+con timeout; ninguna espera de terminación carece de plazo. Ante un fallo se
+intenta matar el proceso y confirmar su terminación dentro del plazo de
+limpieza. **No se garantiza que todo proceso termine**: si no puede confirmarse,
+se devuelve un error seguro y no se espera indefinidamente. Los fallos de
+cierre tampoco muestran mensajes internos ni ocultan un error principal ya
+controlado. Los diagnósticos de las herramientas se descartan. SENTINEL no crea archivos
+temporales, historial propio ni un monitor del portapapeles.
+
+Solo se trabaja con texto y la selección habitual, no la selección primaria.
+No se conservan otros formatos MIME al escribir. La operación no es atómica
+frente a cambios concurrentes del portapapeles; un fallo o timeout durante la
+escritura no permite garantizar una restauración. El indicador `--sensitive`
+es una sugerencia para los gestores y puede ser ignorado. **SENTINEL no elimina
+el historial que Klipper u otros gestores hayan conservado**, ni garantiza el
+borrado seguro de memoria. Esta integración se verifica con procesos simulados.
+
+## Reglas implementadas
 
 Se detectan IPv4 válidas de los rangos 10/8, 172.16/12 y 192.168/16,
 excluyendo las incrustadas en IPv6.
@@ -130,7 +165,6 @@ seguridad.
 La detección es textual: no interpreta lenguajes de configuración, comentarios
 ni valores multilínea, y solo cubre las claves y formas descritas.
 No se hacen conexiones de red ni se ejecuta el texto de entrada. La ausencia
-de hallazgos no garantiza que el texto sea seguro. El portapapeles y la GUI
-están pendientes.
+de hallazgos no garantiza que el texto sea seguro. La GUI está pendiente.
 
 Los ejemplos y las pruebas usan exclusivamente datos sintéticos.
