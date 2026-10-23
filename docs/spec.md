@@ -57,6 +57,18 @@ Las IPv6 quedan fuera de este primer incremento.
 - Conservar intacto el texto restante.
 - Sanitizar dos veces produce el mismo resultado que una vez.
 
+## Primera regla de Command Guard
+
+`check-command` analiza stdin como texto y reporta `CF-BASH-001` con severidad
+alta cuando identifica una descarga con curl o wget entregada por pipe
+directamente a bash o sh. La salida JSON incluye explicación y sugerencia de
+revisión previa del archivo, sin incluir el comando original. Aplica el mismo
+límite de 1 MiB y las invariantes de seguridad del resto de la CLI.
+
+Es una heurística inicial, no un parser completo de Bash. Sus formas admitidas
+y limitaciones se describen en README.md; no garantiza seguridad ante un
+resultado vacío.
+
 ## Limitaciones
 
 La herramienta detectará únicamente las categorías implementadas.

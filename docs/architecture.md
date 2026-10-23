@@ -13,7 +13,9 @@ a la terminal, al portapapeles, al disco ni a la red.
 - CLI: interpreta opciones, valida la entrada y presenta resultados.
 - Detector: identifica valores y sus posiciones en el texto.
 - Sanitizador: sustituye los intervalos detectados.
-- Command Guard: analiza comandos como datos; se incorporará después.
+- Command Guard: tokeniza comandos como datos y devuelve metadatos de riesgo
+  y sugerencias sin conservar el comando en los hallazgos. La regla inicial
+  `CF-BASH-001` busca descargas entregadas por pipe directo a Bash o sh.
 
 ## Primer detector
 

