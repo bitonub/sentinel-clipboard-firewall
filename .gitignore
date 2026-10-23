@@ -1,5 +1,6 @@
 # Entorno virtual
 .venv/
+.venv-ci/
 
 # Archivos generados por Python
 __pycache__/

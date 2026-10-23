@@ -12,6 +12,7 @@ estándar durante la ejecución; la GUI tiene una dependencia opcional de Qt.
 
 Para generar e instalar wheel y sdist, ver
 [construcción y comprobación de paquetes](docs/packaging.md).
+Los trabajos y gates de GitHub Actions se describen en [CI](docs/ci.md).
 
 Instala el proyecto con `pip install .` y ejecuta:
 

@@ -26,6 +26,8 @@ No se publica nada al ejecutar estas órdenes.
 - Sdist: código, pruebas sintéticas, documentación, README, pyproject.toml,
   MANIFEST.in y metadatos generados por setuptools. `setup.cfg` y
   `src/sentinel_clipboard_firewall.egg-info/` son metadatos de construcción.
+  También incluye tools/ y requirements-dev.txt para repetir los gates de CI;
+  estas herramientas no se instalan como dependencias runtime.
 - Ninguno debe contener `.venv`, `.git`, cachés, bytecode, archivos `.env`,
   distribuciones anteriores ni archivos ajenos al producto.
 

@@ -1,0 +1,162 @@
+# CI con GitHub Actions
+
+El workflow `.github/workflows/ci.yml` se ejecuta en push, pull_request y
+workflow_dispatch. Usa entornos virtuales nuevos por trabajo, sin paquetes del
+usuario ni instalaciones editables. Python 3.11 es la versión mínima declarada;
+se prueba la última revisión disponible de esa familia y Python 3.14.
+
+## Trabajos y gates
+
+| Trabajo | Matriz | Gates |
+|---|---|---|
+| CLI | Ubuntu 24.04 / Windows 2025 × Python 3.11 / 3.14 | Qt debe estar ausente; suite completa con exactamente las omisiones de GuiTests; pip check, compileall y diff --check |
+| GUI | Ubuntu 24.04 / Windows 2025 × Python 3.11 / 3.14 | Extra GUI instalado; suite completa con cero omisiones y descubrimiento no vacío de GuiTests; pip check, compileall y diff --check |
+| Paquetes | Ubuntu 24.04 / Windows 2025, Python 3.14 | Wheel y sdist, inventario y metadatos, instalación limpia sin Qt fuera del repositorio, reconstrucción desde sdist y repetición de los smoke tests |
+| Auditoría | Ubuntu 24.04, Python 3.14 | Resolución de runtime base y GUI en entorno separado, auditoría de dependencias transitivas fijadas a las versiones resueltas y pip check |
+
+`tools/run_tests.py` comprueba las identidades de las pruebas omitidas, no solo
+su cantidad. En CLI solo se acepta omitir la clase GuiTests cuando Qt falta.
+Cualquier omisión ajena, fallo, error, ausencia de descubrimiento GUI o ejecución
+incompleta falla el trabajo. En GUI ninguna omisión está permitida. El resumen
+indica cuántas pruebas se descubrieron, cuántas son GUI y las omisiones esperadas
+y reales. No se usa continue-on-error. Las matrices no cancelan sus otras
+combinaciones ante el primer fallo.
+
+Qt usa exclusivamente la plataforma virtual offscreen en las pruebas. En Linux
+se instalan las bibliotecas EGL/OpenGL/xkbcommon necesarias. PYTHONUTF8 y
+PYTHONIOENCODING fijan UTF-8 en los procesos que respetan esas variables.
+Los smoke tests del wheel y el inventario JSON de dependencias usan
+`python -I -X utf8`: conservan el aislamiento y fuerzan UTF-8 explícitamente,
+sin depender de esas variables, que `-I` ignora. El inventario también se
+decodifica explícitamente como UTF-8 en el proceso padre.
+Las pruebas de portapapeles usan procesos simulados; la copia GUI solo usa el
+portapapeles virtual de offscreen, sin consultar el del escritorio.
+
+`tools/check_packages.py` exige inventarios explícitos del wheel y del sdist,
+compara los módulos con el código fuente y comprueba los puntos de entrada,
+Requires-Python y que PySide6 solo pertenezca al extra gui. Crea otro entorno
+temporal sin Qt ni herramientas de construcción, instala el wheel, cambia a
+un directorio externo y ejecuta scan, sanitize y ambos analizadores. El smoke
+test carga los puntos de entrada instalados mediante Python, compatible con
+los lanzadores GUI sin consola de Windows. Comprueba también el diagnóstico
+sin Qt. Un audit hook rechaza eventos socket de Python durante estos análisis.
+Se reconstruye un wheel del sdist extraído, se comparan archivos y contenidos
+y se repiten instalación, smoke tests y pip check.
+
+## Auditoría de dependencias
+
+`requirements-dev.txt` contiene únicamente herramientas de desarrollo. No se
+añaden a las dependencias runtime de pyproject.toml ni al wheel. El sdist incluye
+esas instrucciones y los scripts de CI para poder repetir sus comprobaciones.
+
+`tools/audit_runtime.py` instala el wheel con `[gui]` en un entorno nuevo y lee
+sus metadatos. Recorre el grafo desde SENTINEL para el runtime base y para el
+extra gui, respetando marcadores y extras transitivos. Solo se auditan las
+dependencias externas alcanzables; pip, build y pip-audit no se incluyen salvo
+que realmente llegaran a ser dependencias runtime. SENTINEL, como paquete local
+no publicado, no se consulta como dependencia externa.
+
+El runtime CLI actual está vacío y se informa explícitamente. La GUI debe
+incluir PySide6. La auditoría usa pip-audit con --strict, --no-deps y
+--disable-pip sobre las versiones ya resueltas. No ignora vulnerabilidades ni
+aplica correcciones automáticas: un código distinto de cero, error de resolución
+o fallo de consulta falla el gate. Instalar paquetes y consultar los avisos
+requiere red; los motores de texto de SENTINEL siguen sin usarla.
+
+Esta auditoría detecta avisos conocidos por el servicio PyPI para esas versiones
+de paquetes. No certifica bibliotecas del sistema ni todos los componentes
+nativos embebidos en Qt. No inspecciona texto del usuario. Las versiones se
+resuelven de nuevo en cada ejecución: no es un lock reproducible. El grafo
+auditado corresponde a Linux/Python 3.14; otras combinaciones podrían resolver
+dependencias diferentes y requieren auditoría adicional si se distribuyen.
+
+## Seguridad y acciones fijadas
+
+- Permiso global exclusivo: `contents: read`; los demás permisos quedan sin conceder.
+- Sin secretos ni credenciales configuradas, publicación, releases o escritura
+  en el repositorio. Checkout no persiste las credenciales de lectura implícitas
+  de GitHub. No se usa pull_request_target ni runners propios.
+- Las expresiones del workflow solo seleccionan valores de matrices estáticas;
+  no se interpola texto de PR, ramas o issues en órdenes de shell.
+- Acciones fijadas a commits completos, con versión comentada. Se verificaron
+  el 22 de octubre de 2026 mediante la API pública de los repositorios oficiales:
+
+| Acción | Etiqueta | SHA verificado |
+|---|---|---|
+| [actions/checkout](https://github.com/actions/checkout/tree/v7.0.1) | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| [actions/setup-python](https://github.com/actions/setup-python/tree/v7.1.0) | v7.1.0 | `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0` |
+
+Ambas acciones usan Node 24 en esos commits. Al actualizar una acción, verificar
+la etiqueta y su commit de nuevo en el repositorio oficial, revisar sus cambios
+y modificar juntos SHA y comentario. Los runners hospedados y los paquetes de
+desarrollo/sistema no están fijados a una imagen o cierre de dependencias exacto.
+
+## Repetir gates localmente
+
+En un entorno limpio sin Qt, instalar `pip install .` y ejecutar:
+
+```sh
+python tools/run_tests.py --mode cli
+python -m pip check
+```
+
+En otro entorno con `pip install '.[gui]'`:
+
+```sh
+python tools/run_tests.py --mode gui
+python -m pip check
+```
+
+En un entorno de desarrollo separado:
+
+```sh
+python -m pip install -r requirements-dev.txt
+python -m build
+python tools/check_packages.py
+python tools/audit_runtime.py
+python -m compileall -q src tests tools
+git diff --check
+```
+
+Utilizar un directorio dist sin artefactos de otras versiones; el gate exige un
+solo wheel y un solo sdist. Los scripts seleccionan automáticamente bin o
+Scripts/python.exe para los entornos temporales. Las dependencias de desarrollo
+y los avisos de seguridad se descargan solo en los pasos que los necesitan.
+
+## Límites y estado
+
+### Comprobaciones locales realizadas
+
+En Fedora 44, CPython 3.14.7, el 22 de octubre de 2026:
+
+- actionlint 1.7.12 validó el workflow. El binario se obtuvo del repositorio
+  oficial y se verificó contra el checksum publicado con su release.
+- Gate GUI: 124 pruebas ejecutadas, incluidas 32 GUI, sin omisiones ni fallos.
+- Gate CLI en `.venv-ci` nuevo sin Qt: 124 pruebas descubiertas, 92 ejecutadas
+  y exactamente 32 omisiones esperadas de GuiTests; sin fallos.
+- Gate de paquetes: wheel de 27 archivos y sdist de 56, instalación externa,
+  reconstrucción y smoke tests correctos con sockets Python bloqueados.
+- pip-audit 2.10.1: grafo CLI vacío; seis dependencias externas de GUI auditadas,
+  sin vulnerabilidades conocidas reportadas por PyPI en esa consulta.
+  Se resolvieron PySide6, Essentials, Addons y shiboken6 6.12.0, y Pdf/WebEngine
+  6.12.0.140. Esto no certifica la ausencia de vulnerabilidades en Qt nativo.
+- pip check en entornos de desarrollo y CLI, compileall y diff --check correctos.
+
+No se ejecutó localmente Python 3.11, Windows ni un workflow en GitHub.
+
+### Pendiente en GitHub y en escritorios nativos
+
+La configuración preparada no equivale a una ejecución aprobada en GitHub.
+La matriz completa, los permisos efectivos del repositorio y las bibliotecas
+de los runners deben verificarse cuando se ejecute allí. No se configura la
+protección de ramas ni se crean remotos desde esta tarea; el administrador
+deberá elegir los checks requeridos tras observar sus nombres reales.
+
+Una ejecución Windows de CI no verifica el portapapeles de Windows ni la GUI
+nativa. Tampoco offscreen verifica Wayland, X11, temas, HiDPI, accesibilidad o
+integración con el compositor. Esas comprobaciones manuales siguen pendientes.
+El audit hook de sockets es un control de regresión de Python, no un aislamiento
+de red a nivel de sistema operativo ni un sandbox para código no confiable.
+
+Referencias: [seguridad de GitHub Actions](https://docs.github.com/en/actions/reference/security/secure-use)
+y [pip-audit](https://github.com/pypa/pip-audit).
