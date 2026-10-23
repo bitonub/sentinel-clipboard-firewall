@@ -1,7 +1,7 @@
 # SENTINEL Clipboard Firewall
 
 Herramienta local para detectar y sanitizar IPv4 privadas, asignaciones de
-contraseña y tokens Bearer en texto
+contraseña, tokens Bearer y credenciales en URLs PostgreSQL en texto
 proporcionado explícitamente por stdin. Requiere Python 3.11 o superior y usa
 solo la biblioteca estándar durante la ejecución.
 
@@ -21,6 +21,9 @@ printf 'password=Synthetic42 pwd=Synthetic42' | sentinel sanitize
 
 printf 'Authorization: Bearer Synthetic42' | sentinel sanitize
 # Authorization: Bearer [BEARER_TOKEN_1]
+
+printf 'postgres://synthetic:example42@db.example:5432/app' | sentinel sanitize
+# postgres://[POSTGRES_USER_1]:[POSTGRES_PASSWORD_1]@db.example:5432/app
 ```
 
 `scan` devuelve una lista JSON de hallazgos con posiciones de caracteres
@@ -54,6 +57,23 @@ contraseña presentes en el texto se reservan antes de numerar valores nuevos.
 Un token que también sea una IPv4 se sustituye como Bearer; un encabezado
 dentro del valor de una contraseña se sustituye como parte de esa contraseña.
 No se interpretan representaciones JSON de encabezados ni encabezados plegados.
+
+En candidatas `postgres://` y `postgresql://` con userinfo se sustituyen el usuario
+y la contraseña no vacíos por `[POSTGRES_USER_n]` y `[POSTGRES_PASSWORD_n]`.
+Las etiquetas existentes se reservan por tipo y operación. Los valores con
+percent-encoding se comparan literalmente, sin decodificarlos. Se oculta un
+userinfo inequívoco incluso con puertos inválidos, hosts malformados o varios
+hosts, conservando el resto de la candidata. No se valida la conectividad ni
+la configuración del servidor. Si el userinfo es ambiguo (por ejemplo, varios
+`@` en la autoridad o escapes inválidos), se sustituye la candidata completa
+por `[POSTGRES_URL_n]`.
+Dentro de estas candidatas con userinfo no se aplican las otras reglas, para
+evitar sustituciones parciales. Si una asignación de contraseña contiene una
+URL o termina dentro de ella, su intervalo se amplía para cubrir la URL entera.
+Las URLs sin userinfo siguen permitiendo la detección IPv4. La regla cubre
+solo userinfo en la autoridad: no analiza credenciales en la consulta, sockets
+Unix ni todas las variantes de libpq; las candidatas terminan en espacios,
+comillas o delimitadores angulares.
 
 La detección es textual: no interpreta lenguajes de configuración, comentarios
 ni valores multilínea, y solo cubre las claves y formas descritas.

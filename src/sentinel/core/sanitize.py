@@ -7,6 +7,9 @@ _PREFIXES = {
     "RFC1918_IPV4": "PRIVATE_IP",
     "PASSWORD_ASSIGNMENT": "PASSWORD",
     "BEARER_TOKEN": "BEARER_TOKEN",
+    "POSTGRES_USER": "POSTGRES_USER",
+    "POSTGRES_PASSWORD": "POSTGRES_PASSWORD",
+    "POSTGRES_URL": "POSTGRES_URL",
 }
 
 
@@ -14,7 +17,9 @@ def sanitize(text: str) -> str:
     pieces = []
     placeholders: dict[tuple[str, str], str] = {}
     counts: dict[str, int] = {}
-    reserved_labels = set(re.findall(r"\[(?:PASSWORD|BEARER_TOKEN)_[0-9]+\]", text))
+    reserved_labels = set(re.findall(
+        r"\[(?:PASSWORD|BEARER_TOKEN|POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_URL)_[0-9]+\]", text
+    ))
     previous_end = 0
     for finding in scan(text):
         value = text[finding.start:finding.end]

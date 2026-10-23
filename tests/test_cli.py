@@ -67,6 +67,41 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.stderr, b"")
         self.assertEqual(result.stdout, b"Authorization: Bearer [BEARER_TOKEN_1]\n")
 
+    def test_postgres_scan_and_sanitize(self):
+        text = b"postgresql://SyntheticUser42:SyntheticSecret42@db.example:5432/app"
+        result = run_cli("scan", text)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        findings = json.loads(result.stdout)
+        self.assertEqual([f["rule_id"] for f in findings], ["POSTGRES_USER", "POSTGRES_PASSWORD"])
+        self.assertEqual([text[f["start"]:f["end"]] for f in findings], [b"SyntheticUser42", b"SyntheticSecret42"])
+        self.assertNotIn(b"SyntheticUser42", result.stdout)
+        self.assertNotIn(b"SyntheticSecret42", result.stdout)
+        result = run_cli("sanitize", text)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        self.assertEqual(result.stdout, b"postgresql://[POSTGRES_USER_1]:[POSTGRES_PASSWORD_1]@db.example:5432/app")
+
+    def test_postgres_malformed_candidates_do_not_expose_userinfo(self):
+        for url, expected in (
+            (b"postgres://SyntheticUser42:SyntheticSecret42@db:bad/app",
+             b"postgres://[POSTGRES_USER_1]:[POSTGRES_PASSWORD_1]@db:bad/app"),
+            (b"postgres://SyntheticUser42:SyntheticSecret42@10.0.0.1,10.0.0.2/app",
+             b"postgres://[POSTGRES_USER_1]:[POSTGRES_PASSWORD_1]@10.0.0.1,10.0.0.2/app"),
+            (b"postgres://SyntheticUser42:SyntheticSecret42@one@two/app", b"[POSTGRES_URL_1]"),
+        ):
+            with self.subTest(url=url):
+                result = run_cli("scan", url)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stderr, b"")
+                self.assertTrue(json.loads(result.stdout))
+                self.assertNotIn(b"SyntheticUser42", result.stdout)
+                self.assertNotIn(b"SyntheticSecret42", result.stdout)
+                result = run_cli("sanitize", url)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stderr, b"")
+                self.assertEqual(result.stdout, expected)
+
     def test_input_size_boundary(self):
         exact = run_cli("sanitize", b"a" * (1024 * 1024))
         self.assertEqual(exact.returncode, 0)
