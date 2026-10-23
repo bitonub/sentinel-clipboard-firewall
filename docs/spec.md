@@ -90,6 +90,22 @@ adicionales de espera de terminación durante la limpieza. Si no se confirma
 la terminación se comunica un error seguro sin esperar indefinidamente;
 un fallo de limpieza no sustituye un error principal ya controlado.
 
+## GUI mínima opcional
+
+sentinel-gui requiere el extra gui (PySide6); la instalación base conserva la
+CLI sin Qt. Ofrece Inspeccionar, Sanitizar y Analizar comando con selector
+Bash/PowerShell solo para comandos. Entrada y salida son texto plano, la salida
+es de solo lectura y la entrada aceptada tiene un límite de 1 MiB UTF-8.
+Inspección y Command Guard muestran hasta 200 hallazgos sin valores originales,
+con total y cantidad mostrada. La salida sanitizada se conserva completa incluso
+si supera el límite de entrada. Editar descarta resultados anteriores y pendientes.
+
+Una sola operación se ejecuta fuera del hilo de interfaz. El cierre se aplaza
+sin bloquear hasta que termine el trabajador, incluida su terminación nativa.
+No se ejecuta la entrada ni se usa red. Los errores no incluyen contenido.
+No hay persistencia, historial propio, bandeja, monitorización ni operaciones
+automáticas de portapapeles. Copiar y pegar manualmente están permitidos.
+
 ## Limitaciones
 
 La herramienta detectará únicamente las categorías implementadas.

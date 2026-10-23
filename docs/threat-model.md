@@ -57,6 +57,27 @@ si no se confirma su terminación se deja de esperar y se devuelve un error
 sin detalles sensibles. Los errores de cierre se contienen y no ocultan el
 error principal de la operación.
 
+## Interfaz gráfica opcional
+
+La entrada y la salida sanitizada son visibles en pantalla; capturas de pantalla
+y el entorno de escritorio quedan fuera del control de SENTINEL. Los metadatos
+no contienen valores originales. Errores del motor, del inicio de tareas o de
+la presentación no reproducen excepciones ni contenido. No se usan formatos
+ricos ni apertura de enlaces al presentar texto no confiable.
+
+Se limita el documento aceptado a 1 MiB UTF-8 y se revalida antes del análisis.
+Qt puede reservar memoria para un pegado antes de rechazarlo; tampoco se limita
+la salida sanitizada a 1 MiB, pues los placeholders pueden expandirla. Mostrar
+solo 200 hallazgos limita la presentación, no el trabajo de detección.
+Los resultados se asocian a la revisión analizada para evitar presentar una
+sanitización obsoleta. El cierre conserva el trabajador hasta su terminación,
+sin forzar su destrucción ni bloquear la interfaz. No existe un plazo duro del
+motor ni borrado seguro de RAM. Deshacer está desactivado; no hay historial
+propio ni persistencia. Qt solo accede al portapapeles por acciones manuales
+del usuario. La GUI no utiliza el adaptador Wayland ni elimina historiales de
+gestores externos. Las pruebas automatizadas usan offscreen y datos sintéticos;
+la revisión visual nativa en Fedora/Wayland se realiza por separado.
+
 ## Datos de desarrollo
 
 Todos los ejemplos y casos de prueba serán sintéticos.

@@ -6,6 +6,8 @@ stdin → CLI → motor → resultado
 
 clipboard sanitize → adaptador Wayland → motor → adaptador Wayland → estado
 
+sentinel-gui → editor acotado → QThread → motor → señales → salida de texto plano
+
 La CLI recibe texto UTF-8 y limita la entrada a 1 MiB.
 El núcleo recibe texto y devuelve resultados sin acceder
 a la terminal, al portapapeles, al disco ni a la red.
@@ -71,4 +73,18 @@ stderr contendrá diagnósticos y errores sin reproducir la entrada.
 ## Interfaces
 
 El adaptador Wayland reutiliza el núcleo sin introducir subprocess en él.
-La GUI futura utilizará el mismo núcleo independiente de las interfaces.
+La GUI opcional reutiliza scan, sanitize y check_command directamente. Qt solo
+se importa al iniciar sentinel-gui; la CLI y el núcleo no dependen de él.
+La constante de 1 MiB se comparte desde sentinel.limits. El editor valida bytes
+UTF-8, con comprobaciones adicionales antes y dentro del trabajador.
+
+El trabajador es un QThread que implementa únicamente run; no modifica widgets.
+Devuelve texto sanitizado completo o los metadatos de hasta 200 hallazgos con
+el total. Las excepciones se convierten en diagnósticos estáticos. Solo hay una
+operación simultánea. Una revisión de entrada identifica resultados obsoletos,
+que no se presentan; editar elimina también los resultados ya visibles.
+La ventana coordina el cierre con finished y comprueba wait(0) mediante el
+bucle de eventos antes de liberar el hilo; no espera de forma bloqueante.
+La finalización no tiene un plazo duro ni cancelación forzada. El mapa de
+sustituciones permanece local al motor. La GUI no usa el adaptador Wayland,
+archivos de contenido, QSettings ni acceso automático al portapapeles.

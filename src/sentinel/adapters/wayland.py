@@ -8,9 +8,9 @@ import time
 
 from sentinel.core.sanitize import sanitize
 from sentinel.core.scan import scan
+from sentinel.limits import MAX_INPUT_BYTES
 
 
-MAX_INPUT_BYTES = 1024 * 1024
 TOOL_TIMEOUT = 5.0
 CLEANUP_TIMEOUT = 2.0
 PASTE_COMMAND = ("wl-paste", "--no-newline", "--type", "text")
