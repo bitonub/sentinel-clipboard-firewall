@@ -10,6 +10,8 @@ from sentinel.adapters import wayland
 
 class ClipboardTests(unittest.TestCase):
     def setUp(self):
+        # This suite exercises Wayland on every host, never a native clipboard.
+        self.enterContext(patch("sentinel.cli.sanitize_clipboard", wayland.sanitize_clipboard))
         self.data = io.BytesIO("α password=SYNTHETIC_SECRET_MARKER host=10.0.0.1\n".encode())
         self.read_sizes = []
         self.process = MagicMock()

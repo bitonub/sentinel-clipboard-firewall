@@ -8,7 +8,7 @@ import sys
 from sentinel.core.sanitize import sanitize
 from sentinel.core.scan import scan
 from sentinel.core.command_guard import CommandSyntaxError, check_command
-from sentinel.adapters.wayland import ClipboardError, sanitize_clipboard
+from sentinel.adapters.clipboard import ClipboardError, sanitize_clipboard
 from sentinel.limits import MAX_INPUT_BYTES
 
 

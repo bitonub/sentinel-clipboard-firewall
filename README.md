@@ -118,7 +118,45 @@ todavía pendiente: temas claro/oscuro, escalado HiDPI, tamaños de ventana,
 navegación por teclado, legibilidad, operaciones cerca del límite y cierre con
 trabajo pendiente. Para esa revisión se utilizarán solo datos sintéticos.
 
-## Portapapeles en Fedora/Wayland
+## Portapapeles: selección de plataforma
+
+`sentinel clipboard sanitize` selecciona Windows en `win32` y Wayland en Linux,
+solo al ejecutar la orden. Otras plataformas producen un diagnóstico seguro.
+No importa Qt ni añade dependencias a la CLI. La selección no depende del
+lenguaje elegido para Command Guard. No hay monitorización ni acceso automático.
+
+### Windows
+
+**Implementado con pruebas Win32 simuladas en Linux; pendiente de verificación
+en una sesión Windows.** Usa `ctypes` y las DLL del sistema, sin procesos externos.
+Lee CF_UNICODETEXT en bloques UTF-16LE, valida sustitutos y terminador NUL,
+y limita la representación UTF-8 a 1 MiB. La lectura examina como máximo
+`2 × (1 MiB + 1)` bytes UTF-16, independientemente del tamaño de la asignación.
+La salida sanitizada se conserva completa aunque crezca por los placeholders.
+
+Sanitiza fuera de la apertura del portapapeles y prepara toda la memoria de
+salida antes de EmptyClipboard. Si no hay cambios, no escribe. Antes de escribir
+reabre con una ventana oculta propia y comprueba la secuencia y el texto actual;
+un conflicto aborta sin vaciar ni publicar. Al publicar se sustituyen también
+HTML, RTF u otros formatos que podrían contener el original.
+
+La terminal solo muestra estado y cantidad de hallazgos. Después de iniciar el
+vaciado, cualquier fallo, incluida la limpieza posterior a una publicación
+correcta, indica que el portapapeles puede haber cambiado. No hay restauración
+automática garantizada. La memoria transferida correctamente pertenece a Windows.
+Antes de llamar a SetClipboardData se suspende la liberación del bloque: si una
+interrupción deja incierto el resultado, puede quedar sin liberar para evitar
+liberar memoria del sistema. Un fallo confirmado permite liberarlo. La
+cancelación con KeyboardInterrupt se propaga.
+No se elimina el historial de Windows ni de gestores externos, ni se controla
+la sincronización de Windows/RDP. Python no garantiza borrado seguro de RAM.
+
+Los reintentos de OpenClipboard están limitados a 5 segundos por apertura;
+esto no impone un timeout total a llamadas Win32 síncronas, incluido el
+renderizado diferido de otra aplicación. El protocolo de comprobación nativa
+con datos sintéticos está en [docs/windows-clipboard.md](docs/windows-clipboard.md).
+
+### Fedora/Wayland
 
 `sentinel clipboard sanitize` lee el portapapeles una sola vez al ejecutar la
 orden y sustituye su texto usando el mismo motor. Requiere `wl-paste` y

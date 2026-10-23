@@ -4,7 +4,7 @@
 
 stdin → CLI → motor → resultado
 
-clipboard sanitize → adaptador Wayland → motor → adaptador Wayland → estado
+clipboard sanitize → selector de plataforma → Windows/Wayland → motor → adaptador → estado
 
 sentinel-gui → editor acotado → QThread → motor → señales → salida de texto plano
 
@@ -15,6 +15,27 @@ a la terminal, al portapapeles, al disco ni a la red.
 ## Componentes
 
 - CLI: interpreta opciones, valida la entrada y presenta resultados.
+- Selector de portapapeles: contratos comunes ClipboardError/ClipboardResult y
+  carga diferida de Windows (win32) o Wayland (Linux). La CLI y el núcleo no
+  cargan DLL ni acceden al portapapeles al importarse.
+- Adaptador Windows: API Win32 inyectable; ctypes se carga solo al crear el
+  binding real. Firma explícitamente BOOL/UINT/DWORD de 32 bits y punteros,
+  handles y SIZE_T del tamaño correspondiente. Carga user32/kernel32 con
+  búsqueda restringida al sistema. No usa Qt ni subprocess.
+  Lee CF_UNICODETEXT mediante GlobalSize/GlobalLock y bloques acotados, con
+  decodificador UTF-16LE incremental, NUL alineado y contador UTF-8 de 1 MiB.
+  GlobalSize puede incluir relleno; no equivale a la longitud del texto.
+  Abre solo durante la lectura y la comprobación/publicación; el motor corre
+  fuera de esas aperturas. Prepara el HGLOBAL completo antes de vaciar, crea
+  una ventana oculta del sistema y vuelve a comprobar secuencia y texto.
+  El bloqueo se libera antes de transferir memoria con SetClipboardData;
+  antes de esa llamada se suspende GlobalFree, y solo un fallo confirmado
+  restablece la liberación. Una interrupción con resultado ambiguo puede dejar
+  el bloque sin liberar; KeyboardInterrupt se propaga. La ventana se destruye en
+  el mismo hilo. La limpieza conserva el error principal y no reproduce
+  excepciones nativas. No se garantiza restauración después de EmptyClipboard.
+  OpenClipboard tiene reintentos con reloj monotónico hasta 5 segundos;
+  las llamadas Win32 síncronas no tienen un plazo total impuesto por SENTINEL.
 - Adaptador Wayland: solo ante clipboard sanitize, lee una selección textual
   mediante wl-paste con lectura acotada y plazo total, valida UTF-8 y transmite
   el resultado a wl-copy por stdin si hay cambios. Los procesos usan argumentos
@@ -72,7 +93,7 @@ stderr contendrá diagnósticos y errores sin reproducir la entrada.
 
 ## Interfaces
 
-El adaptador Wayland reutiliza el núcleo sin introducir subprocess en él.
+Los adaptadores reutilizan el núcleo sin introducir ctypes ni subprocess en él.
 La GUI opcional reutiliza scan, sanitize y check_command directamente. Qt solo
 se importa al iniciar sentinel-gui; la CLI y el núcleo no dependen de él.
 La constante de 1 MiB se comparte desde sentinel.limits. El editor valida bytes

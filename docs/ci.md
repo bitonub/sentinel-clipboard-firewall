@@ -216,6 +216,12 @@ deberá elegir los checks requeridos tras observar sus nombres reales.
 Una ejecución Windows de CI no verifica el portapapeles de Windows ni la GUI
 nativa. Tampoco offscreen verifica Wayland, X11, temas, HiDPI, accesibilidad o
 integración con el compositor. Esas comprobaciones manuales siguen pendientes.
+Las pruebas del adaptador Windows inyectan una API falsa y memoria sintética,
+también al ejecutarse en Windows; sus imports no cargan DLL de portapapeles.
+Las pruebas Wayland fijan su backend incluso en Windows para impedir un acceso
+nativo accidental. El protocolo manual está en
+[windows-clipboard.md](windows-clipboard.md): el estado actual es implementado
+con pruebas simuladas, pendiente de verificar en una sesión Windows.
 El audit hook de sockets es un control de regresión de Python, no un aislamiento
 de red a nivel de sistema operativo ni un sandbox para código no confiable.
 

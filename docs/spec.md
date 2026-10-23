@@ -14,7 +14,8 @@ Interfaz de terminal con tres operaciones:
 - check-command: explicar patrones de riesgo sin ejecutar la entrada.
 
 Las tres operaciones reciben texto mediante stdin. La orden explícita
-`clipboard sanitize` lee y sanitiza texto del portapapeles Wayland.
+`clipboard sanitize` lee y sanitiza texto del portapapeles Windows o Wayland,
+seleccionado de forma diferida por plataforma.
 
 ## Primer incremento funcional
 
@@ -80,8 +81,8 @@ resultado vacío.
 
 `sentinel clipboard sanitize` utiliza el motor existente y escribe solo si el
 texto cambia. La terminal muestra únicamente estado y número de hallazgos.
-Lee como máximo 1 MiB más un byte, valida UTF-8 y no inicia la escritura ante
-errores de lectura, tamaño, codificación o sanitización. El adaptador invoca
+No inicia la escritura ante errores de lectura, tamaño, codificación o
+sanitización. En Wayland lee como máximo 1 MiB más un byte, valida UTF-8 e invoca
 solo wl-paste y wl-copy con argumentos fijos, shell=False y tiempos límite,
 sin enviar datos en argumentos ni reproducir sus diagnósticos. El núcleo
 permanece independiente de subprocess y del portapapeles.
@@ -89,6 +90,31 @@ La lectura/comunicación tiene un plazo de 5 segundos, con hasta 2 segundos
 adicionales de espera de terminación durante la limpieza. Si no se confirma
 la terminación se comunica un error seguro sin esperar indefinidamente;
 un fallo de limpieza no sustituye un error principal ya controlado.
+
+En Windows usa Win32 mediante ctypes y CF_UNICODETEXT, sin Qt ni dependencias
+externas. Decodifica UTF-16LE incrementalmente, valida el terminador NUL alineado
+y limita la entrada a 1 MiB medido en UTF-8. Examina como máximo
+2 × (MAX_INPUT_BYTES + 1) bytes de la memoria nativa. No se lee la asignación
+completa sin límite. El relleno posterior al terminador no se interpreta como texto.
+No se aplica ese límite a la salida sanitizada, que puede expandirse.
+
+Primero lee y cierra, después analiza y prepara toda la memoria de salida.
+Solo si hay cambios crea una ventana oculta propia, reabre el portapapeles y
+comprueba secuencia y texto antes de EmptyClipboard y SetClipboardData. Si hay
+conflicto o no puede obtenerse una secuencia válida, aborta sin escribir.
+La memoria de lectura pertenece al sistema; la de salida pasa a Windows solo
+al publicar correctamente. Todos los recursos propios tienen limpieza protegida.
+La limpieza deja de liberar el bloque antes de llamar a SetClipboardData y solo
+lo recupera ante un retorno NULL confirmado. Si una interrupción impide conocer
+el resultado, puede quedar un bloque sin liberar; nunca se arriesga liberar
+memoria que Windows haya adquirido. KeyboardInterrupt no se convierte en éxito
+ni en un error genérico: se propaga al usuario.
+Los fallos posteriores al inicio del vaciado comunican posible modificación,
+sin prometer restauración. Se reemplazan los otros formatos de la selección.
+
+El plazo Windows de 5 segundos acota reintentos de apertura, no la duración
+de llamadas nativas síncronas. La implementación está probada con una API
+inyectable simulada; la comprobación en una sesión Windows sigue pendiente.
 
 ## GUI mínima opcional
 

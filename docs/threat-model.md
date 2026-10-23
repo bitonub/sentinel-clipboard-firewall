@@ -28,6 +28,9 @@ de SENTINEL. Se supone que el equipo no está comprometido.
 | Generar falsa confianza | Documentar alcance y limitaciones | Ausencia de hallazgos no significa seguridad |
 | Capturar sin límite la salida de wl-paste | Lectura máxima de 1 MiB más un byte, plazo y limpieza acotada | La compatibilidad depende del compositor Wayland |
 | Filtrar texto mediante procesos del portapapeles | Argumentos fijos, shell=False, stdin para wl-copy y diagnósticos descartados | wl-copy y el compositor mantienen la selección para servirla |
+| Leer memoria Win32 sin límite o con Unicode malformado | GlobalSize, lecturas acotadas, NUL alineado y UTF-16LE incremental estricto; límite UTF-8 | ctypes exige firmas y punteros correctos; requiere comprobación nativa |
+| Sobrescribir una copia concurrente en Windows | Reapertura, comparación de secuencia y texto bajo apertura antes de vaciar | No es una transacción con restauración ni protege frente a cambios posteriores |
+| Liberar memoria ya transferida a Windows | Suspender la liberación antes de SetClipboardData; restaurarla solo ante fallo confirmado | Un resultado ambiguo puede dejar el bloque sin liberar; no se promete ausencia de modificación |
 
 ## Primer incremento: IPv4 privadas
 
@@ -56,6 +59,27 @@ adicional acotada durante la limpieza. No se garantiza que terminen tras kill:
 si no se confirma su terminación se deja de esperar y se devuelve un error
 sin detalles sensibles. Los errores de cierre se contienen y no ocultan el
 error principal de la operación.
+
+En Windows la selección actual puede incluir HTML/RTF además del texto; una
+escritura sanitizada vacía todos esos formatos para no conservar originales
+alternativos, perdiendo formato enriquecido. Un fallo después de empezar
+EmptyClipboard puede dejar la selección vacía o modificada. No se restaura
+automáticamente el original ni se libera el HGLOBAL de una publicación exitosa.
+Si una interrupción deja incierto el resultado de SetClipboardData, se conserva
+el bloque aunque quizá Windows no lo haya adquirido. Se acepta esa posible
+asignación sin liberar para evitar liberar memoria ajena. KeyboardInterrupt se
+propaga, sin ocultar la cancelación.
+Los reintentos de apertura están acotados; una llamada Win32 síncrona puede
+esperar a otra aplicación para el renderizado diferido y no tiene timeout
+cancelable de SENTINEL. No se garantiza la liberación si falla la propia API
+de limpieza. No hay archivos, monitorización ni historial propio.
+
+El historial de Windows, la sincronización entre dispositivos, RDP y gestores
+externos pueden conservar o transportar copias fuera del proceso. SENTINEL
+no elimina esas copias ni garantiza borrado de RAM. Las pruebas automatizadas
+inyectan una API Win32 falsa en Linux y Windows; no consultan el portapapeles
+real. Implementado con pruebas simuladas no significa verificado en una sesión
+Windows. El procedimiento nativo está en windows-clipboard.md.
 
 ## Interfaz gráfica opcional
 

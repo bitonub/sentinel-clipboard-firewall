@@ -1,6 +1,5 @@
 """Explicit Wayland clipboard I/O; the inspection core never starts processes."""
 
-from dataclasses import dataclass
 import os
 import selectors
 import subprocess
@@ -9,22 +8,13 @@ import time
 from sentinel.core.sanitize import sanitize
 from sentinel.core.scan import scan
 from sentinel.limits import MAX_INPUT_BYTES
+from sentinel.adapters.clipboard import ClipboardError, ClipboardResult
 
 
 TOOL_TIMEOUT = 5.0
 CLEANUP_TIMEOUT = 2.0
 PASTE_COMMAND = ("wl-paste", "--no-newline", "--type", "text")
 COPY_COMMAND = ("wl-copy", "--type", "text/plain;charset=utf-8", "--sensitive")
-
-
-class ClipboardError(Exception):
-    """Only static, non-sensitive diagnostics may be supplied here."""
-
-
-@dataclass(frozen=True)
-class ClipboardResult:
-    changed: bool
-    findings: int
 
 
 def _close_resource(resource) -> bool:
