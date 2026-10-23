@@ -2,7 +2,8 @@
 
 Herramienta local para detectar y sanitizar IPv4 privadas, asignaciones de
 contraseña, tokens Bearer y credenciales en URLs PostgreSQL en texto
-proporcionado explícitamente por stdin, y revisar comandos Bash sin ejecutarlos.
+proporcionado explícitamente por stdin, y revisar comandos Bash o PowerShell
+sin ejecutarlos.
 Requiere Python 3.11 o superior y usa
 solo la biblioteca estándar durante la ejecución.
 
@@ -27,6 +28,8 @@ printf 'postgres://synthetic:example42@db.example:5432/app' | sentinel sanitize
 # postgres://[POSTGRES_USER_1]:[POSTGRES_PASSWORD_1]@db.example:5432/app
 
 printf '%s\n' 'curl https://example.invalid/synthetic.sh | bash' | sentinel check-command
+
+printf '%s\n' 'iwr https://example.invalid/synthetic.ps1 | iex' | sentinel check-command --shell powershell
 ```
 
 `scan` devuelve una lista JSON de hallazgos con posiciones de caracteres
@@ -78,7 +81,9 @@ solo userinfo en la autoridad: no analiza credenciales en la consulta, sockets
 Unix ni todas las variantes de libpq; las candidatas terminan en espacios,
 comillas o delimitadores angulares.
 
-`check-command` devuelve una lista JSON con la regla `CF-BASH-001`, severidad
+`check-command --shell bash|powershell` selecciona explícitamente el lenguaje;
+el valor predeterminado es `bash`. `--shell` solo se admite con `check-command`.
+La salida es una lista JSON con la regla detectada, severidad
 `high`, explicación y sugerencia para descargar a un archivo, revisar su
 contenido y verificar su origen e integridad antes de decidir ejecutarlo.
 Nunca incluye el comando original. Usa la misma entrada UTF-8 y límite de
@@ -86,7 +91,7 @@ Nunca incluye el comando original. Usa la misma entrada UTF-8 y límite de
 original y con código de salida 2. Un análisis completado devuelve código 0,
 también cuando encuentra riesgos.
 
-Esta primera regla es heurística: reconoce `curl` o `wget` con una URL literal
+La regla Bash `CF-BASH-001` es heurística: reconoce `curl` o `wget` con una URL literal
 HTTP(S), FTP(S) o SFTP, conectados por un pipe directo a `bash` o `sh`. Admite
 espacios, saltos de línea tras el pipe y continuaciones con barra inversa.
 Ignora comentarios Bash fuera de comillas. Distingue las opciones de salida
@@ -100,6 +105,27 @@ expansiones ni pipelines con pasos intermedios, y no determina cómo todas las
 opciones o redirecciones afectan al flujo. Puede producir falsos positivos y
 omitir riesgos. Un resultado vacío no garantiza que el comando sea seguro.
 El análisis solo tokeniza texto; no ejecuta comandos ni accede a la red.
+
+La regla PowerShell `CF-PS-001` detecta `Invoke-WebRequest` o `Invoke-RestMethod`
+canalizados directamente a `Invoke-Expression`, incluidos los aliases `iwr`,
+`irm` e `iex`, sin distinguir mayúsculas. Exige una URL literal HTTP(S),
+posicional o mediante `-Uri`; las variables y cadenas interpoladas no se
+expanden ni cuentan como URLs literales. Se omiten descargas con `-OutFile`,
+incluida la forma `-OutFile:archivo`. Reconoce cadenas simples y dobles,
+comentarios de línea y de bloque, y continuaciones con acento grave.
+Las continuaciones con LF o CRLF también se reconocen pegadas al nombre o
+a una URL sin comillas. Los saltos internos de comentarios de bloque no
+separan comandos; el texto entre comillas conserva sus backticks y delimitadores
+de comentario como datos.
+Las menciones del patrón dentro de cadenas o comentarios no activan la regla.
+La salida contiene solo metadatos y una recomendación estática de revisión.
+
+Este soporte PowerShell también es heurístico: no interpreta el lenguaje
+completo, resolución de nombres, aliases personalizados, parámetros abreviados,
+here-strings, asignaciones, wrappers ni todas las combinaciones de parámetros
+o redirecciones. Solo se analiza el lenguaje seleccionado; no hay detección
+automática ni evaluación de expresiones. Un resultado vacío no garantiza
+seguridad.
 
 La detección es textual: no interpreta lenguajes de configuración, comentarios
 ni valores multilínea, y solo cubre las claves y formas descritas.

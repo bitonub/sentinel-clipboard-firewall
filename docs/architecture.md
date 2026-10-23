@@ -14,8 +14,11 @@ a la terminal, al portapapeles, al disco ni a la red.
 - Detector: identifica valores y sus posiciones en el texto.
 - Sanitizador: sustituye los intervalos detectados.
 - Command Guard: tokeniza comandos como datos y devuelve metadatos de riesgo
-  y sugerencias sin conservar el comando en los hallazgos. La regla inicial
-  `CF-BASH-001` busca descargas entregadas por pipe directo a Bash o sh.
+  y sugerencias sin conservar el comando en los hallazgos. La CLI selecciona
+  explícitamente Bash (predeterminado) o PowerShell. `CF-BASH-001` busca
+  descargas entregadas por pipe directo a Bash o sh; `CF-PS-001` busca descargas
+  canalizadas directamente a Invoke-Expression. Los analizadores son estáticos
+  e independientes, sin ejecución ni expansión de variables.
 
 ## Primer detector
 

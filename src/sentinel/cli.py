@@ -16,7 +16,10 @@ MAX_INPUT_BYTES = 1024 * 1024
 def main() -> int:
     parser = argparse.ArgumentParser(prog="sentinel")
     parser.add_argument("command", choices=("scan", "sanitize", "check-command"))
+    parser.add_argument("--shell", choices=("bash", "powershell"), default=None)
     args = parser.parse_args()
+    if args.shell is not None and args.command != "check-command":
+        parser.error("--shell solo se admite con check-command.")
 
     raw = sys.stdin.buffer.read(MAX_INPUT_BYTES + 1)
     if len(raw) > MAX_INPUT_BYTES:
@@ -30,7 +33,7 @@ def main() -> int:
 
     if args.command == "check-command":
         try:
-            findings = check_command(content)
+            findings = check_command(content, shell=args.shell or "bash")
         except CommandSyntaxError:
             print("Error: no se pudo analizar la sintaxis del comando.", file=sys.stderr)
             return 2

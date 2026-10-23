@@ -1,4 +1,4 @@
-"""Heuristic Bash inspection. Input is tokenized as data, never executed."""
+"""Static command inspection with explicit Bash or PowerShell selection."""
 
 from dataclasses import dataclass
 import re
@@ -125,7 +125,13 @@ def _without_comments(text: str) -> str:
     return "".join(pieces)
 
 
-def check_command(text: str) -> list[CommandFinding]:
+def check_command(text: str, shell: str = "bash") -> list[CommandFinding]:
+    if shell == "powershell":
+        from sentinel.core.powershell_guard import check_powershell
+
+        return check_powershell(text)
+    if shell != "bash":
+        raise ValueError("Lenguaje de comandos no admitido.")
     lexer = shlex.shlex(_without_comments(text), posix=False, punctuation_chars=_OPERATORS)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
