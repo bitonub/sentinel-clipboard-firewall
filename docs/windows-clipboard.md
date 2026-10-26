@@ -2,7 +2,11 @@
 
 ## Estado y alcance
 
-**Implementado con API Win32 simulada en Linux. No verificado en una sesión Windows.**
+**Implementado con pruebas simuladas y comprobaciones nativas parciales en
+Windows 11 de 64 bits, Python 3.11.9 y 3.14.9.** Véanse los resultados locales
+y límites al final de este documento. La aceptación de GUI completó sus ocho
+grupos en ambos Python el 24 de octubre de 2026 dentro del alcance registrado
+en [validacion-windows.md](validacion-windows.md).
 Este procedimiento es manual y deliberadamente accede a la selección actual.
 No lo ejecutan la suite ni GitHub Actions. Usar una sesión de prueba y solo
 datos sintéticos: la operación reemplaza la selección actual y sus otros
@@ -67,8 +71,9 @@ exacta ni ausencia de otras representaciones.
 ## Casos con productor/inspector Win32 de prueba
 
 Estos casos requieren un productor sintético y un inspector independientes del
-adaptador, ejecutados manualmente en una sesión dedicada. No forman parte de
-las comprobaciones nativas realizadas en esta tarea:
+adaptador, invocados por caso durante el protocolo manual en una sesión dedicada.
+No forman parte de la suite automatizada. Los resultados locales de esta sesión
+se registran más abajo:
 
 | Caso | Preparación | Resultado esperado |
 |---|---|---|
@@ -113,6 +118,70 @@ requiere Python de 64 bits y no sustituye la comprobación nativa de las DLL.
   complementan esta comprobación y no la sustituyen.
 - Registrar fecha, aprobados, fallidos y pendientes antes de cambiar el estado
   a «verificado en una sesión Windows».
+
+## Resultados locales del 23 de octubre de 2026
+
+Windows 11 Pro `10.0.26300`, AMD64, CPython `3.11.9` y `3.14.9`, todos de 64 bits.
+Los puntos de entrada CLI instalados se ejecutaron desde fuera del repositorio,
+sin Qt. Cada comprobación estuvo precedida de un aviso explícito de reemplazo
+del portapapeles. No se conservaron originales ni
+se modificaron historial, sincronización, RDP o gestores externos; su estado
+es desconocido. Los casos siguientes utilizaron la selección real y muestras
+sintéticas fijas. La suite automatizada sigue usando exclusivamente dobles y Qt
+offscreen; estos accesos nativos no se incorporaron a ella.
+
+| Caso | Resultado observado en ambos Python |
+|---|---|
+| Bloque ordinario de cuatro líneas | Código 0, seis hallazgos; lector independiente confirmó resultado exacto, Unicode, CRLF y salto final, valores repetidos y texto público intacto |
+| Conservación tras salir e idempotencia | Publicación disponible tras terminar el proceso; segunda ejecución código 0, cero hallazgos, texto y secuencia conservados |
+| Texto público y placeholders | Código 0, cero hallazgos; secuencia, formatos y SHA-256 de la asignación sin cambios |
+| CF_UNICODETEXT vacío | Código 0, cero hallazgos; muestra vacía válida, sin reescritura |
+| Imagen DIB sintética sin texto | Código 2, diagnóstico estático; imagen, formatos y secuencia intactos |
+| Texto con HTML y RTF sintéticos | Código 0, un hallazgo; salida textual exacta; HTML/RTF presentes antes y ausentes después |
+| Límite exacto de 1 MiB UTF-8 | Código 0, sin cambios; `é` repetida 524288 veces aceptada |
+| Un byte adicional | Código 2, error estático de tamaño; muestra, formatos y secuencia intactos |
+| Emoji entre bloques de lectura | Código 0, un hallazgo; salida exacta con emoji íntegro tras 4095 caracteres `x` |
+| Sustituto UTF-16 aislado | Código 2, error estático Unicode; asignación y secuencia intactas |
+| Salida expandida | Entrada de 1048575 bytes UTF-8; 95325 hallazgos; salida exacta de 2097150 bytes UTF-8, sin truncamiento |
+| Contención con otra ventana | Ventana independiente retuvo OpenClipboard ocho segundos; código 2 por timeout de apertura, aproximadamente 5,33 s en 3.11 y 5,31 s en 3.14; muestra y secuencia intactas |
+| Conflicto coordinado | Binding Win32 real; otro proceso publicó entre la primera lectura y la reapertura; error esperado de conflicto y nueva copia intacta, incluida secuencia y memoria |
+
+La coordinación del conflicto pausó únicamente el retorno de la primera
+CloseClipboard del binding real para esperar al productor independiente. No
+se modificó el producto ni se simuló la DLL, pero este caso no fue un lanzamiento
+del CLI sin instrumentación. El productor/inspector no importa SENTINEL ni Qt.
+Su lectura acotada compara las muestras conocidas sin imprimirlas ni guardarlas;
+registra únicamente metadatos, booleanos y hashes. Las utilidades y registros
+locales están en `.venv/validation-2026-10-23/`, fuera de la suite y del paquete.
+
+Límites y observaciones que no se consideran aprobaciones:
+
+- El primer intento manual dio dos hallazgos sobre una copia cuya identidad no
+  se había verificado previamente. Su causa no está determinada. Los reintentos
+  con el bloque completo verificado produjeron los seis hallazgos esperados.
+- Al publicar una muestra sin terminador, la inspección nativa la encontró
+  terminada y con dos bytes adicionales. No se presentó como Unicode inválido
+  al producto ni se alteró memoria transferida para forzar el caso. La ausencia
+  de terminador conserva cobertura simulada, sin aprobación nativa en esta sesión.
+- Se descartaron intentos solapados de la utilidad local; solo se consideran los
+  reintentos secuenciales con publicación e inspección confirmadas. El primer
+  productor de contención sin HWND propio no mantuvo la exclusión esperada; se
+  corrigió únicamente la utilidad y se repitió con ventana propia.
+- La salida expandida se volvió a presentar como entrada en Python 3.14: código
+  2 por tamaño y contenido intacto. Esto es el límite documentado de entrada,
+  no un fallo de idempotencia del motor. No se repitió ese subcaso en 3.11.
+- La GUI nativa abrió con el plugin `windows` en ambos Python. El usuario
+  confirmó inicialmente sanitización básica y descarte al editar en 3.14.
+  El 24 de octubre completó la revisión guiada G1-G8 en ambos Python: teclado,
+  solo lectura, copia/pegado breve, legibilidad oscuro/144 DPI y cierres. Los
+  cuatro cierres dieron código 0; los pendientes usaron demora sintética de
+  cinco segundos. Otros temas/escalas/cargas no se acreditan. Véase el informe
+  de aceptación, separado de los resultados CLI nativos de esta tabla.
+- Los fallos nativos de liberación y de transferencia permanecen cubiertos
+  mediante simulación; no se provocaron ni se afirma ausencia de fugas nativas.
+
+El registro público de versiones, métodos, resultados y límites de GUI se
+conserva en [validacion-windows.md](validacion-windows.md).
 
 ## Referencias oficiales
 

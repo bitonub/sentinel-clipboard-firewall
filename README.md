@@ -4,9 +4,72 @@ Herramienta local para detectar y sanitizar IPv4 privadas, asignaciones de
 contraseña, tokens Bearer y credenciales en URLs PostgreSQL en texto
 proporcionado explícitamente por stdin, y revisar comandos Bash o PowerShell
 sin ejecutarlos. En Fedora/Wayland permite sanitizar el portapapeles mediante
-una orden explícita.
+una orden explícita; Windows tiene un adaptador Win32 con pruebas simuladas
+y comprobaciones nativas registradas en Windows 11 de 64 bits.
 Requiere Python 3.11 o superior. La CLI y el núcleo usan solo la biblioteca
 estándar durante la ejecución; la GUI tiene una dependencia opcional de Qt.
+
+Para entender la implementación y recorrer un ejemplo, consulta la
+[guía técnica](docs/guia-tecnica.md).
+
+Versión **0.0.1**, distribuida como **wheel y sdist**, sin instalador autónomo.
+Código y documentación propios bajo [MIT](LICENSE),
+`Copyright (c) 2026 bitonub`. Las dependencias mantienen sus licencias:
+[avisos de terceros](THIRD_PARTY_NOTICES.md). Las donaciones son opcionales;
+no se ha definido un enlace de patrocinio.
+
+Las plataformas comprobadas y sus condiciones se describen en
+[Windows](docs/validacion-windows.md) y [Fedora/Wayland](docs/validacion-fedora.md).
+Las [notas de versión](docs/notas-version-0.0.1.md) resumen capacidades y límites.
+El candidato público tiene documentación revisada y hashes propios; no sustituye
+el archivo histórico de construcción. Su comprobación se entrega en VALIDACION.md
+junto al wheel, sdist y SHA256SUMS.txt. No hay monitorización automática ni
+protección universal frente a secretos o comandos peligrosos.
+
+## Instalar la entrega 0.0.1
+
+Se entrega wheel y sdist; no hay instalador ni Python/Qt embebidos. Usa Python
+3.11 o 3.14 de los entornos aceptados; el extra GUI depende también de los
+binarios y bibliotecas de plataforma de Qt. No se garantiza Python futuro.
+Las órdenes siguientes se ejecutan desde la carpeta que contiene el wheel.
+La instalación GUI puede descargar sus dependencias; el análisis no usa red.
+
+### Fedora/Wayland (Bash)
+
+```sh
+SENTINEL_WHEEL="$PWD/sentinel_clipboard_firewall-0.0.1-py3-none-any.whl"
+python3.14 -m venv .venv-sentinel
+.venv-sentinel/bin/python -m pip install "$SENTINEL_WHEEL"
+printf 'password=Synthetic42 host=10.20.30.40' | .venv-sentinel/bin/sentinel sanitize
+# GUI opcional en el mismo entorno:
+.venv-sentinel/bin/python -m pip install "${SENTINEL_WHEEL}[gui]"
+QT_QPA_PLATFORM=wayland QT_DISABLE_EMOJI_SEGMENTER=1 .venv-sentinel/bin/sentinel-gui
+```
+
+Para el comando explícito de portapapeles hace falta wl-clipboard, instalado
+por separado (por ejemplo, `sudo dnf install wl-clipboard`), y una sesión
+Wayland real. **Antes de `sentinel clipboard sanitize`, avisa y termina de
+usar el contenido actual: puede reemplazarlo y no lo restaura.** No es un
+paso de instalación ni se ejecuta automáticamente. El protocolo aceptado usó
+terminal persistente para mantener wl-copy después de salir SENTINEL.
+
+### Windows (PowerShell)
+
+```powershell
+$SentinelWheel = (Resolve-Path .\sentinel_clipboard_firewall-0.0.1-py3-none-any.whl).Path
+py -3.14 -m venv .venv-sentinel
+& .\.venv-sentinel\Scripts\python.exe -m pip install $SentinelWheel
+'password=Synthetic42 host=10.20.30.40' | & .\.venv-sentinel\Scripts\sentinel.exe sanitize
+# GUI opcional:
+& .\.venv-sentinel\Scripts\python.exe -m pip install "${SentinelWheel}[gui]"
+& .\.venv-sentinel\Scripts\sentinel-gui.exe
+```
+
+Puede elegirse `py -3.11` si es la versión instalada; las aceptadas fueron
+3.11.9 y 3.14.9 en Windows 11 x64. No aplicar a Windows la variable del backend
+Wayland. No hace falta activar el entorno ni cambiar la política de scripts.
+Para instalar desde el sdist, usar su ruta con `python -m pip install`; esa
+operación construye un wheel local y necesita el backend de construcción.
 
 ## Uso
 
@@ -14,7 +77,9 @@ Para generar e instalar wheel y sdist, ver
 [construcción y comprobación de paquetes](docs/packaging.md).
 Los trabajos y gates de GitHub Actions se describen en [CI](docs/ci.md).
 
-Instala el proyecto con `pip install .` y ejecuta:
+Los siguientes ejemplos son Bash y usan el entorno activado o su ejecutable
+explícito. Para desarrollo desde fuentes puede usarse `python -m pip install .`.
+Los comandos remotos de ejemplo son datos para Command Guard: no se ejecutan.
 
 ```sh
 printf 'host=10.20.30.40 peer=10.20.30.40' | sentinel sanitize
@@ -39,8 +104,8 @@ printf '%s\n' 'iwr https://example.invalid/synthetic.ps1 | iex' | sentinel check
 
 `scan` devuelve una lista JSON de hallazgos con posiciones de caracteres
 `[inicio, fin)` y sin incluir los valores encontrados. `sanitize` conserva el
-resto del texto y reutiliza una etiqueta para cada valor repetido de la misma categoría durante
-la operación. Se admiten hasta 1 MiB de entrada UTF-8; errores y diagnósticos
+resto del texto y reutiliza una etiqueta para cada valor repetido de la misma
+regla durante la operación. Se admiten hasta 1 MiB de entrada UTF-8; errores y diagnósticos
 van a stderr sin reproducir la entrada.
 
 ## GUI opcional
@@ -93,10 +158,10 @@ PySide6 es el binding oficial de Qt para Python. Se usan QtCore, QtGui y
 QtWidgets, sin QML ni WebEngine en la aplicación. El extra PySide6 instala
 binarios y módulos adicionales, lo que aumenta descarga, disco y mantenimiento;
 las actualizaciones requieren repetir pruebas de GUI y compatibilidad con Python.
-Está disponible bajo LGPLv3/GPLv3 o licencia comercial; al distribuir deben
-respetarse las licencias aplicables y los avisos de terceros:
-[Qt for Python](https://doc.qt.io/qtforpython-6/index.html) y
-[licencias](https://doc.qt.io/qtforpython-6/licenses.html).
+PySide6/Qt y sus componentes mantienen sus licencias propias. MIT de SENTINEL
+no se les atribuye; el inventario y las referencias a sus condiciones están en
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Nuestros wheel/sdist no
+incluyen esos binarios, y no se certifica aquí una redistribución de Qt.
 
 ### Comprobación de la GUI
 
@@ -113,10 +178,21 @@ Las pruebas GUI usan QtTest con la plataforma virtual `offscreen`, datos
 sintéticos y QMimeData simulado. La copia manual se comprueba solo con el
 portapapeles virtual de ese plugin, sin acceder al portapapeles real. Sin el extra,
 las pruebas que necesitan Qt se omiten; deben ejecutarse sin omisiones en el
-entorno GUI. Esto **no sustituye una revisión visual nativa en Fedora/Wayland**,
-todavía pendiente: temas claro/oscuro, escalado HiDPI, tamaños de ventana,
-navegación por teclado, legibilidad, operaciones cerca del límite y cierre con
-trabajo pendiente. Para esa revisión se utilizarán solo datos sintéticos.
+entorno GUI. Esto **no sustituye una revisión visual nativa detallada**.
+La [aceptación nativa Fedora](docs/validacion-fedora.md) se completó
+en la configuración observada: Fedora 44 KDE/Wayland, Python 3.14.7,
+PySide6/Qt 6.11.2, oscuro y escala 100%, con este ajuste de lanzamiento:
+
+```sh
+QT_QPA_PLATFORM=wayland QT_DISABLE_EMOJI_SEGMENTER=1 sentinel-gui
+```
+
+El ajuste permite dibujar el emoji de la muestra, conservado como texto aun
+sin él. No se garantiza el dibujo sin ese ajuste ni otros emoji/ZWJ,
+temas/escalas/monitores o condiciones no documentadas. El informe conserva
+un comando reproducible y los tamaños observados, teclado,
+solo lectura, copia/pegado y cierres, incluido el cierre con demora sintética
+de cinco segundos. No se cuenta offscreen como aceptación nativa.
 
 ## Portapapeles: selección de plataforma
 
@@ -127,8 +203,12 @@ lenguaje elegido para Command Guard. No hay monitorización ni acceso automátic
 
 ### Windows
 
-**Implementado con pruebas Win32 simuladas en Linux; pendiente de verificación
-en una sesión Windows.** Usa `ctypes` y las DLL del sistema, sin procesos externos.
+**Implementado con pruebas simuladas y comprobaciones nativas en Windows 11
+de 64 bits, Python 3.11.9 y 3.14.9.** Los casos comprobados y sus límites están
+en [el registro nativo](docs/windows-clipboard.md#resultados-locales-del-23-de-octubre-de-2026).
+La [aceptación nativa de la GUI](docs/validacion-windows.md) completó sus ocho
+grupos en ambos Python, con tema oscuro y 144 DPI; el informe detalla el alcance
+y los límites. El adaptador usa `ctypes` y las DLL del sistema, sin procesos externos.
 Lee CF_UNICODETEXT en bloques UTF-16LE, valida sustitutos y terminador NUL,
 y limita la representación UTF-8 a 1 MiB. La lectura examina como máximo
 `2 × (1 MiB + 1)` bytes UTF-16, independientemente del tamaño de la asignación.
@@ -158,6 +238,14 @@ con datos sintéticos está en [docs/windows-clipboard.md](docs/windows-clipboar
 
 ### Fedora/Wayland
 
+La [validación nativa Fedora/Wayland](docs/validacion-fedora.md) se completó
+el 25 de octubre de 2026, con E1/I1, W1-W4 y G1-G7 aprobados dentro
+de su configuración y límites. Los casos Wayland se ejecutaron en una
+**terminal persistente**, para conservar el servidor wl-copy tras salir
+SENTINEL. Cerrar la sesión del ejecutor hizo desaparecer ese servidor y cambió
+la selección; el contenido del primer W1 con cero hallazgos no se registró y
+no está reconstruido. No se afirma que estuviera ya sanitizado.
+
 `sentinel clipboard sanitize` lee el portapapeles una sola vez al ejecutar la
 orden y sustituye su texto usando el mismo motor. Requiere `wl-paste` y
 `wl-copy` del paquete externo `wl-clipboard`, y una sesión Wayland compatible.
@@ -186,7 +274,8 @@ frente a cambios concurrentes del portapapeles; un fallo o timeout durante la
 escritura no permite garantizar una restauración. El indicador `--sensitive`
 es una sugerencia para los gestores y puede ser ignorado. **SENTINEL no elimina
 el historial que Klipper u otros gestores hayan conservado**, ni garantiza el
-borrado seguro de memoria. Esta integración se verifica con procesos simulados.
+borrado seguro de memoria. La cobertura automatizada usa procesos simulados;
+la aceptación nativa separada se registra en [validacion-fedora.md](docs/validacion-fedora.md).
 
 ## Reglas implementadas
 

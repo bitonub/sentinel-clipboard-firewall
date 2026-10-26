@@ -1,5 +1,16 @@
 # Construcción e instalación de paquetes Python
 
+Versión **0.0.1**, entrega mediante **wheel y sdist**, sin instalador.
+Código propio bajo MIT, Copyright (c) 2026 bitonub. LICENSE y
+THIRD_PARTY_NOTICES.md se incluyen en ambos artefactos. Las dependencias no se
+relicencian ni se incorporan sus binarios. El candidato público excluye los
+registros internos y conserva informes técnicos con rutas neutras.
+Resultados del candidato en VALIDACION.md; metodología y antecedentes en
+[validacion-paquetes.md](validacion-paquetes.md).
+
+Se mantiene PySide6>=6.11.2,<6.12. Los resultados antiguos que citan Qt 6.12.0
+son históricos y no autorizan instalarlo para la entrega final.
+
 ## Construir
 
 Desde la raíz del repositorio, con Python 3.11 o superior:
@@ -22,9 +33,10 @@ No se publica nada al ejecutar estas órdenes.
 ## Contenido esperado
 
 - Wheel: módulos Python de `sentinel` (incluida la GUI), metadatos y puntos
-  de entrada `sentinel` y `sentinel-gui`. No contiene Qt ni las pruebas.
-- Sdist: código, pruebas sintéticas, documentación, README, pyproject.toml,
-  MANIFEST.in y metadatos generados por setuptools. `setup.cfg` y
+  de entrada `sentinel` y `sentinel-gui`; LICENSE y THIRD_PARTY_NOTICES.md bajo
+  dist-info/licenses. No contiene Qt ni las pruebas.
+- Sdist: código, pruebas sintéticas, documentación, README, LICENSE,
+  THIRD_PARTY_NOTICES.md, pyproject.toml, MANIFEST.in y metadatos de setuptools. `setup.cfg` y
   `src/sentinel_clipboard_firewall.egg-info/` son metadatos de construcción.
   También incluye tools/ y requirements-dev.txt para repetir los gates de CI;
   estas herramientas no se instalan como dependencias runtime.
@@ -76,6 +88,14 @@ python3 -m venv /tmp/sentinel-gui-check
 ```
 
 La última orden abre una ventana y requiere una sesión gráfica compatible.
+En la configuración Fedora aceptada se usa, tras activar ese entorno:
+
+```sh
+QT_QPA_PLATFORM=wayland QT_DISABLE_EMOJI_SEGMENTER=1 sentinel-gui
+```
+
+Este ajuste y los límites se explican en [validacion-fedora.md](validacion-fedora.md).
+No se repite ahora su aceptación nativa.
 Para pruebas automatizadas se usa `QT_QPA_PLATFORM=offscreen` con cierre
 programado; ejecutar solo el lanzador en ese modo dejaría el bucle de eventos
 activo hasta cerrar la ventana. No se lee ni escribe el portapapeles real.
@@ -167,7 +187,7 @@ portapapeles real, ni se ejecutó el contenido analizado. No se publicaron
 paquetes ni se crearon releases. No se afirma reproducibilidad binaria entre
 fechas o versiones distintas de las herramientas de construcción.
 
-### Verificaciones pendientes
+### Límites generales y verificaciones del snapshot final
 
 El wheel es Python puro; la etiqueta `py3-none-any` no certifica el soporte
 de todas las plataformas. La integración de portapapeles requiere Fedora/Wayland
@@ -180,3 +200,47 @@ verificación específica.
 Las órdenes de construcción siguen la documentación de
 [build](https://build.pypa.io/en/stable/) y el control de archivos de
 [setuptools](https://setuptools.pypa.io/en/latest/userguide/miscellaneous.html).
+
+## Licencia e inventarios del snapshot 0.0.1
+
+`project.license = "MIT"` y `project.license-files = ["LICENSE",
+"THIRD_PARTY_NOTICES.md"]` usan PEP 639, admitido por el backend declarado
+setuptools>=77. La licencia estándar contiene Copyright (c) 2026 bitonub.
+No se alteran autores de Git. Se conservan las exclusiones de MANIFEST.in.
+
+El gate compara inventarios exactos, sin fijar recuentos históricos: módulos,
+metadatos y los dos archivos de licencia/avisos en wheel; documentación,
+pruebas, herramientas, configuración y metadatos adicionales en sdist. Verifica
+License-Expression/License-File en METADATA y PKG-INFO, identidad/extra/puntos
+de entrada, hashes/tamaños RECORD, ausencia de duplicados, contenidos de
+licencia/avisos, README y todos los fuentes/documentos incorporados al sdist.
+La reconstrucción desde sdist compara todos los archivos y contenidos del
+wheel y repite instalación/smokes de CLI desde fuera del repositorio.
+
+Las regresiones específicas están en tests/test_packages.py; no utilizan Qt,
+portapapeles real ni red. Su ejecución se limita a empaquetado y al gate de CI
+afectado, sin revalidar Windows/Fedora ni repetir la suite completa.
+
+La licencia MIT del proyecto no licencia sus dependencias. El aviso de terceros
+explica qué se entrega y qué se instala fuera del wheel, con referencias y
+hashes de los wheels Linux usados como entradas de comprobación. No se
+certifica una redistribución de Qt/PySide6 que no forma parte de la entrega.
+
+El informe externo de artefactos conserva nombres, tamaños y SHA-256. Esos
+hashes no se insertan en un documento del propio sdist para evitar una identidad
+circular. Si cambia algún documento incorporado, se reconstruye y verifica el
+snapshot antes de entregar su identidad. Ver [validacion-paquetes.md](validacion-paquetes.md).
+
+## Documentación pública y registros excluidos
+
+MANIFEST.in enumera individualmente los documentos públicos. El gate mantiene
+una lista independiente PUBLIC_DOCUMENTS y rechaza los tres registros internos
+incluso si existen localmente. Esos archivos están también ignorados por Git;
+no se añaden con add -f. No se espera que estén presentes al reconstruir desde
+el sdist. Un documento nuevo necesita una inclusión explícita y su revisión;
+no se incluye cualquier Markdown encontrado en el árbol de trabajo.
+
+El candidato se construye en una carpeta nueva y conserva el archivo anterior.
+No mezclar artefactos 0.0.1 de lotes diferentes. Solo se proponen como adjuntos
+los dos paquetes, SHA256SUMS.txt y VALIDACION.md. Los inventarios detallados,
+diffs, logs y respaldos de revisión se mantienen fuera de esos adjuntos.

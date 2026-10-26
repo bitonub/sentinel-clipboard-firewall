@@ -114,7 +114,8 @@ sin prometer restauración. Se reemplazan los otros formatos de la selección.
 
 El plazo Windows de 5 segundos acota reintentos de apertura, no la duración
 de llamadas nativas síncronas. La implementación está probada con una API
-inyectable simulada; la comprobación en una sesión Windows sigue pendiente.
+inyectable simulada y casos nativos en Windows 11/Python 3.11.9 y 3.14.9;
+el alcance y límites están en `docs/windows-clipboard.md`.
 
 ## GUI mínima opcional
 

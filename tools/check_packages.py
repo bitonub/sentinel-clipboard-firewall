@@ -1,8 +1,12 @@
 """Audit built archives, rebuild the sdist and smoke-test an installed wheel."""
 
 import argparse
+import base64
 import configparser
+import csv
 from email.parser import BytesParser
+import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -17,6 +21,18 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Independent allowlist: a new public document requires deliberate review.
+PUBLIC_DOCUMENTS = frozenset({
+    "docs/architecture.md", "docs/ci.md", "docs/guia-tecnica.md",
+    "docs/notas-version-0.0.1.md", "docs/packaging.md", "docs/spec.md",
+    "docs/threat-model.md", "docs/validacion-fedora.md",
+    "docs/validacion-paquetes.md", "docs/validacion-windows.md",
+    "docs/windows-clipboard.md",
+})
+PRIVATE_DOCUMENTS = frozenset({
+    "docs/continuidad.md", "docs/traspaso-work.md", "docs/cierre-mvp.md",
+})
+
 
 def require(condition, message):
     if not condition:
@@ -25,6 +41,29 @@ def require(condition, message):
 
 def python_in(directory):
     return directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def check_license(metadata, project):
+    require(project.get("license") == metadata["License-Expression"] == "MIT",
+            "Wrong license expression.")
+    require(project.get("license-files") == ["LICENSE", "THIRD_PARTY_NOTICES.md"],
+            "Unexpected license-file declaration.")
+    require(sorted(metadata.get_all("License-File", [])) == sorted(project["license-files"]),
+            "Wrong license-file metadata.")
+
+
+def check_record(archive, info):
+    rows = list(csv.reader(io.StringIO(archive.read(f"{info}/RECORD").decode("utf-8"))))
+    require(all(len(row) == 3 for row in rows), "Malformed wheel RECORD.")
+    require(len(rows) == len(archive.namelist())
+            and {row[0] for row in rows} == set(archive.namelist()), "Wrong wheel RECORD inventory.")
+    for name, digest, size in rows:
+        if name == f"{info}/RECORD":
+            require(digest == size == "", "RECORD must not hash itself.")
+            continue
+        data = archive.read(name)
+        wanted = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
+        require(digest == "sha256=" + wanted and size == str(len(data)), "Wrong wheel RECORD hash/size.")
 
 
 def audit_archives(wheel, sdist):
@@ -37,12 +76,35 @@ def audit_archives(wheel, sdist):
     modules = {p.relative_to(ROOT / "src").as_posix() for p in (ROOT / "src/sentinel").rglob("*.py")}
     expected = modules | {f"{info}/{f}" for f in (
         "METADATA", "WHEEL", "entry_points.txt", "top_level.txt", "RECORD")}
+    license_files = project["license-files"]
+    expected |= {f"{info}/licenses/{name}" for name in license_files}
+    license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    require("Copyright (c) 2026 bitonub\n" in license_text
+            and "Permission is hereby granted, free of charge" in license_text
+            and 'THE SOFTWARE IS PROVIDED "AS IS"' in license_text,
+            "Missing MIT grant, copyright or disclaimer.")
     with zipfile.ZipFile(wheel) as archive:
+        wheel_count = len(archive.namelist())
+        require(wheel_count == len(set(archive.namelist())), "Duplicate wheel files.")
         require(set(archive.namelist()) == expected, "Unexpected or missing wheel files.")
         require(archive.testzip() is None, "Corrupt wheel.")
+        check_record(archive, info)
+        wheel_metadata = BytesParser().parsebytes(archive.read(f"{info}/WHEEL"))
+        require(wheel_metadata["Wheel-Version"] == "1.0"
+                and wheel_metadata["Root-Is-Purelib"] == "true"
+                and wheel_metadata.get_all("Tag") == ["py3-none-any"], "Wrong pure-Python wheel metadata.")
         for module in modules:
             require(archive.read(module) == (ROOT / "src" / module).read_bytes(), "Wheel source mismatch.")
         metadata = BytesParser().parsebytes(archive.read(f"{info}/METADATA"))
+        check_license(metadata, project)
+        for filename in license_files:
+            require(archive.read(f"{info}/licenses/{filename}") == (ROOT / filename).read_bytes(),
+                    "Wheel license/notice mismatch.")
+        require(metadata["Name"] == project["name"] and metadata["Version"] == version,
+                "Wrong project identity.")
+        require(metadata.get_payload(decode=True).decode("utf-8").rstrip("\n")
+                == (ROOT / "README.md").read_text(encoding="utf-8").rstrip("\n"),
+                "Wheel README mismatch.")
         require(metadata["Requires-Python"] == project["requires-python"], "Wrong Python requirement.")
         require(project["dependencies"] == [], "The base CLI must remain dependency-free.")
         requirements = [Requirement(r) for r in metadata.get_all("Requires-Dist", [])]
@@ -59,11 +121,15 @@ def audit_archives(wheel, sdist):
         require(dict(entries["gui_scripts"]) == {"sentinel-gui": "sentinel.gui.app:main"}, "Wrong GUI entry.")
     prefix = f"{name}-{version}"
     expected = {"README.md", "MANIFEST.in", "pyproject.toml", "requirements-dev.txt", "PKG-INFO", "setup.cfg"}
-    for directory, pattern in (("src/sentinel", "*.py"), ("tests", "*.py"), ("tools", "*.py"), ("docs", "*.md")):
+    expected |= set(license_files)
+    expected |= PUBLIC_DOCUMENTS
+    for directory, pattern in (("src/sentinel", "*.py"), ("tests", "*.py"), ("tools", "*.py")):
         expected |= {p.relative_to(ROOT).as_posix() for p in (ROOT / directory).rglob(pattern)}
     egg = f"src/{name}.egg-info"
     expected |= {f"{egg}/{f}" for f in ("PKG-INFO", "SOURCES.txt", "dependency_links.txt", "entry_points.txt",
                                        "requires.txt", "top_level.txt")}
+    source_files = {path for path in expected if (ROOT / path).is_file()
+                    and path not in {"PKG-INFO", "setup.cfg"} and not path.startswith(egg + "/")}
     with tarfile.open(sdist) as archive:
         files = set()
         for entry in archive:
@@ -72,9 +138,23 @@ def audit_archives(wheel, sdist):
                     "Unsafe sdist path.")
             require(entry.isfile() or entry.isdir(), "Unexpected archive entry type.")
             if entry.isfile():
-                files.add(path.relative_to(prefix).as_posix())
+                relative = path.relative_to(prefix).as_posix()
+                require(relative not in PRIVATE_DOCUMENTS, "Private document in sdist.")
+                require(relative not in files, "Duplicate sdist files.")
+                files.add(relative)
+                if relative in source_files:
+                    wanted = (ROOT / relative).read_bytes()
+                    require(entry.size == len(wanted), "Sdist source size mismatch.")
+                    with archive.extractfile(entry) as stream:
+                        require(stream.read(len(wanted) + 1) == wanted, "Sdist source content mismatch.")
         require(files == expected, "Unexpected or missing sdist files.")
-    print(f"Archives OK: {len(modules)} modules, wheel {len(modules) + 5} files, sdist {len(files)} files.")
+        for filename in ("PKG-INFO", f"{egg}/PKG-INFO"):
+            with archive.extractfile(f"{prefix}/{filename}") as stream:
+                metadata = BytesParser().parsebytes(stream.read())
+            check_license(metadata, project)
+            require(metadata["Name"] == project["name"] and metadata["Version"] == version,
+                    "Wrong sdist identity.")
+    print(f"Archives OK: {len(modules)} modules, wheel {wheel_count} files, sdist {len(files)} files.")
 
 
 SMOKE = r'''
@@ -95,6 +175,10 @@ assert importlib.util.find_spec("PySide6") is None
 assert importlib.util.find_spec("build") is None
 dist = distribution("sentinel-clipboard-firewall")
 assert "archive_info" in json.loads(dist.read_text("direct_url.json"))
+assert dist.metadata["License-Expression"] == "MIT"
+assert sorted(dist.metadata.get_all("License-File")) == ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+assert "Copyright (c) 2026 bitonub" in dist.read_text("licenses/LICENSE")
+assert "PySide6" in dist.read_text("licenses/THIRD_PARTY_NOTICES.md")
 name = sys.argv[1]
 sys.argv = [name, *sys.argv[2:]]
 entry = next(ep for ep in dist.entry_points if ep.name == name)

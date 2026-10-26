@@ -1,7 +1,20 @@
 include README.md pyproject.toml MANIFEST.in
+include LICENSE THIRD_PARTY_NOTICES.md
 include requirements-dev.txt
 recursive-include src/sentinel *.py
-recursive-include docs *.md
+prune docs
+include docs/architecture.md
+include docs/ci.md
+include docs/guia-tecnica.md
+include docs/notas-version-0.0.1.md
+include docs/packaging.md
+include docs/spec.md
+include docs/threat-model.md
+include docs/validacion-fedora.md
+include docs/validacion-paquetes.md
+include docs/validacion-windows.md
+include docs/windows-clipboard.md
+exclude docs/continuidad.md docs/traspaso-work.md docs/cierre-mvp.md
 recursive-include tests *.py
 recursive-include tools *.py
 prune .venv

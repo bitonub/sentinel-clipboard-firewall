@@ -20,3 +20,8 @@ htmlcov/
 .env
 .env.*
 !.env.example
+
+# Registros privados de continuidad y coordinación
+/docs/continuidad.md
+/docs/traspaso-work.md
+/docs/cierre-mvp.md

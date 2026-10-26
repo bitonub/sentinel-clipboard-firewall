@@ -7,6 +7,8 @@ name = "sentinel-clipboard-firewall"
 version = "0.0.1"
 description = "Local inspection and sanitization of technical text"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.11"
 dependencies = []
 

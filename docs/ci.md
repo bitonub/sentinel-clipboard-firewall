@@ -205,25 +205,59 @@ pip check, compileall, actionlint y git diff --check. La auditoría del nuevo
 grafo GUI (cuatro dependencias externas, todas 6.11.2) no reportó avisos conocidos
 en la consulta PyPI; mantiene las limitaciones de auditoría descritas arriba.
 
-### Pendiente en GitHub y en escritorios nativos
+### Actualización: ejecución real comprobada el 23 de octubre de 2026
 
-La configuración preparada no equivale a una ejecución aprobada en GitHub.
-La matriz completa, los permisos efectivos del repositorio y las bibliotecas
-de los runners deben verificarse cuando se ejecute allí. No se configura la
-protección de ramas ni se crean remotos desde esta tarea; el administrador
+Se consultaron los trabajos y registros de
+[39906129598](https://github.com/bitonub/sentinel-clipboard-firewall/actions/runs/39906129598),
+correspondiente a `6bbff3a3c277748117a5709eca8df159e2737cea`. Sus 11 trabajos
+terminaron correctamente: cuatro CLI, cuatro GUI, dos de paquetes y la auditoría.
+La matriz incluye Ubuntu 24.04 y Windows 2025 con Python 3.11 y 3.14.
+
+- Cada trabajo GUI: 165 pruebas ejecutadas, incluidas 33 GUI, cero omisiones.
+- Cada trabajo CLI sin Qt: 165 descubiertas, 132 ejecutadas efectivamente y
+  exactamente 33 omisiones GUI esperadas; ningún fallo.
+- Paquetes en ambos sistemas: wheel de 29 archivos y sdist de 61, instalación
+  externa, smoke tests y reconstrucción correctos para ese commit.
+- Auditoría: sin vulnerabilidades conocidas reportadas en esa consulta;
+  mantiene los límites de alcance y fecha descritos anteriormente.
+
+Los párrafos anteriores sobre GitHub pendiente describen el estado histórico
+de las correcciones. Esta ejecución posterior verifica esos cambios en CI.
+No acredita documentos o cambios locales posteriores al commit indicado ni
+una sesión de escritorio nativa. Los resultados e inventarios deberán volver
+a comprobarse al modificar el producto o el contenido de sus distribuciones.
+
+### Aceptaciones nativas posteriores y administración del repositorio
+
+La matriz indicada arriba ya pasó en GitHub; debe repetirse tras cambios.
+No se configura la protección de ramas desde esta tarea; el administrador
 deberá elegir los checks requeridos tras observar sus nombres reales.
 
 Una ejecución Windows de CI no verifica el portapapeles de Windows ni la GUI
 nativa. Tampoco offscreen verifica Wayland, X11, temas, HiDPI, accesibilidad o
-integración con el compositor. Esas comprobaciones manuales siguen pendientes.
+integración con el compositor. La aceptación nativa Fedora/Wayland posterior
+está documentada en [validacion-fedora.md](validacion-fedora.md), dentro de su
+configuración: Qt 6.11.2, GUI con QT_DISABLE_EMOJI_SEGMENTER=1 y terminal
+persistente en los casos Wayland. La aceptación posterior de GUI Windows en
+ambos Python se registra
+en [validacion-windows.md](validacion-windows.md), con alcance oscuro/144 DPI
+y límites explícitos, separada de los casos de portapapeles y de estos trabajos CI.
 Las pruebas del adaptador Windows inyectan una API falsa y memoria sintética,
 también al ejecutarse en Windows; sus imports no cargan DLL de portapapeles.
 Las pruebas Wayland fijan su backend incluso en Windows para impedir un acceso
 nativo accidental. El protocolo manual está en
-[windows-clipboard.md](windows-clipboard.md): el estado actual es implementado
-con pruebas simuladas, pendiente de verificar en una sesión Windows.
+[windows-clipboard.md](windows-clipboard.md): además de la simulación, registra
+casos nativos en Windows 11/Python 3.11.9 y 3.14.9, con límites explícitos.
+Esa evidencia local posterior no forma parte de los trabajos de GitHub descritos.
 El audit hook de sockets es un control de regresión de Python, no un aislamiento
 de red a nivel de sistema operativo ni un sandbox para código no confiable.
 
 Referencias: [seguridad de GitHub Actions](https://docs.github.com/en/actions/reference/security/secure-use)
 y [pip-audit](https://github.com/pypa/pip-audit).
+
+## Documentación pública de la versión 0.0.1
+
+Los resultados CI citados corresponden al commit histórico indicado y no a
+una ejecución del candidato público. Las comprobaciones locales de paquetes
+se documentan en VALIDACION.md, adjunto a ese candidato. Los informes nativos
+mantienen sus entornos y límites; no se repiten por cambios documentales.
