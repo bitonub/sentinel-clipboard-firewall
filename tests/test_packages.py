@@ -89,10 +89,12 @@ class PackageArchiveTests(unittest.TestCase):
         self.audit()
 
     def test_readme_crlf_checkout_matches_only_complete_text(self):
-        readme = (self.root / "README.md").read_bytes()
+        readme = (self.root / "README.md").read_bytes().replace(b"\r\n", b"\n")
         windows_checkout = readme.replace(b"\n", b"\r\n")
         self.assertNotEqual(windows_checkout, readme)
         self.source_files["README.md"] = windows_checkout
+        metadata_path = f"{self.info}/METADATA"
+        self.wheel_files[metadata_path] = self.wheel_files[metadata_path].replace(b"\r\n", b"\n")
         self.write_archives()
         original_read_bytes = Path.read_bytes
 
@@ -101,7 +103,6 @@ class PackageArchiveTests(unittest.TestCase):
                 return windows_checkout
             return original_read_bytes(path)
 
-        metadata_path = f"{self.info}/METADATA"
         original_metadata = self.wheel_files[metadata_path]
         with mock.patch.object(Path, "read_bytes", read_windows_checkout):
             self.audit()
