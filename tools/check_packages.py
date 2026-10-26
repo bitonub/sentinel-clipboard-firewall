@@ -66,6 +66,11 @@ def check_record(archive, info):
         require(digest == "sha256=" + wanted and size == str(len(data)), "Wrong wheel RECORD hash/size.")
 
 
+def same_readme_content(description, readme):
+    """Compare complete README bytes, treating only CRLF and LF as equivalent."""
+    return description.replace(b"\r\n", b"\n") == readme.replace(b"\r\n", b"\n")
+
+
 def audit_archives(wheel, sdist):
     from packaging.requirements import Requirement
 
@@ -102,8 +107,8 @@ def audit_archives(wheel, sdist):
                     "Wheel license/notice mismatch.")
         require(metadata["Name"] == project["name"] and metadata["Version"] == version,
                 "Wrong project identity.")
-        require(metadata.get_payload(decode=True).decode("utf-8").rstrip("\n")
-                == (ROOT / "README.md").read_text(encoding="utf-8").rstrip("\n"),
+        require(same_readme_content(metadata.get_payload(decode=True),
+                                    (ROOT / "README.md").read_bytes()),
                 "Wheel README mismatch.")
         require(metadata["Requires-Python"] == project["requires-python"], "Wrong Python requirement.")
         require(project["dependencies"] == [], "The base CLI must remain dependency-free.")

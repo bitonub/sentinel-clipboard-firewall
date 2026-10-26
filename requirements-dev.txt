@@ -1,3 +1,4 @@
 # Development tools only; never runtime dependencies of SENTINEL.
 build>=1.2,<2
+packaging>=26,<27
 pip-audit>=2.9,<3

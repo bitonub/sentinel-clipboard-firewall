@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
 import warnings
 import zipfile
 
@@ -86,6 +87,33 @@ class PackageArchiveTests(unittest.TestCase):
     def test_accepts_mit_and_exact_payload(self):
         self.write_archives()
         self.audit()
+
+    def test_readme_crlf_checkout_matches_only_complete_text(self):
+        readme = (self.root / "README.md").read_bytes()
+        windows_checkout = readme.replace(b"\n", b"\r\n")
+        self.assertNotEqual(windows_checkout, readme)
+        self.source_files["README.md"] = windows_checkout
+        self.write_archives()
+        original_read_bytes = Path.read_bytes
+
+        def read_windows_checkout(path):
+            if path == self.root / "README.md":
+                return windows_checkout
+            return original_read_bytes(path)
+
+        metadata_path = f"{self.info}/METADATA"
+        original_metadata = self.wheel_files[metadata_path]
+        with mock.patch.object(Path, "read_bytes", read_windows_checkout):
+            self.audit()
+            for changed_description in (
+                original_metadata + b"\n",
+                original_metadata.replace(b"SENTINEL", b"SENTINEX", 1),
+            ):
+                with self.subTest(changed_description=changed_description[-12:]):
+                    self.wheel_files[metadata_path] = changed_description
+                    self.write_archives()
+                    with self.assertRaisesRegex(RuntimeError, "Wheel README mismatch"):
+                        self.audit()
 
     def test_rejects_missing_license_even_with_consistent_record(self):
         del self.wheel_files[f"{self.info}/licenses/LICENSE"]
