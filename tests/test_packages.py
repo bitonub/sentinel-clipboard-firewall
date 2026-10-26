@@ -2,6 +2,7 @@
 import base64
 import contextlib
 import csv
+from email.parser import BytesParser
 import hashlib
 import io
 from pathlib import Path
@@ -94,8 +95,14 @@ class PackageArchiveTests(unittest.TestCase):
         self.assertNotEqual(windows_checkout, readme)
         self.source_files["README.md"] = windows_checkout
         metadata_path = f"{self.info}/METADATA"
-        self.wheel_files[metadata_path] = self.wheel_files[metadata_path].replace(b"\r\n", b"\n")
+        self.wheel_files[metadata_path] = (
+            self.wheel_files[metadata_path].replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
         self.write_archives()
+        with zipfile.ZipFile(self.wheel) as archive:
+            description = BytesParser().parsebytes(archive.read(metadata_path)).get_payload(decode=True)
+        readme_text = windows_checkout.decode("utf-8").replace("\r\n", "\n")
+        self.assertEqual(description.count(b"\r\n"), windows_checkout.count(b"\r\n"))
+        self.assertNotEqual(description.decode("utf-8").rstrip("\n"), readme_text.rstrip("\n"))
         original_read_bytes = Path.read_bytes
 
         def read_windows_checkout(path):
